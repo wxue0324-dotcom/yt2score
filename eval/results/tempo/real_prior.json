@@ -1,0 +1,90 @@
+{
+  "label": "prior",
+  "summary": {
+    "cases": 4,
+    "tempo_ok": 2,
+    "grid_ok": 4,
+    "errors": [
+      "2x",
+      "off"
+    ],
+    "failed": [
+      "Merry Christmas Mr. Lawrence",
+      "fly me to the moon (acapella cover)"
+    ]
+  },
+  "cases": [
+    {
+      "id": "78294d0054e7",
+      "title": "LOFI PIANO SAMPLE",
+      "tags": [
+        "piano",
+        "no-drums",
+        "mid",
+        "short"
+      ],
+      "tempo_true": 81.0,
+      "tempo_detected": 80.75,
+      "ratio": 0.997,
+      "verdict": "ok",
+      "bpb_detected": 4,
+      "grid_bpm": 80.75,
+      "grid_ok": true,
+      "seconds": 3.4
+    },
+    {
+      "id": "3369e3eec558",
+      "title": "YOASOBI 勇者",
+      "tags": [
+        "jpop",
+        "drums",
+        "vocals",
+        "mid"
+      ],
+      "tempo_true": 103.0,
+      "tempo_detected": 103.36,
+      "ratio": 1.003,
+      "verdict": "ok",
+      "bpb_detected": 4,
+      "grid_bpm": 103.36,
+      "grid_ok": true,
+      "seconds": 9.9
+    },
+    {
+      "id": "647103e8fe0a",
+      "title": "Merry Christmas Mr. Lawrence",
+      "tags": [
+        "piano",
+        "no-drums",
+        "slow",
+        "rubato"
+      ],
+      "tempo_true": 63.0,
+      "tempo_detected": 161.5,
+      "ratio": 2.563,
+      "verdict": "off",
+      "bpb_detected": 4,
+      "grid_bpm": 161.5,
+      "grid_ok": true,
+      "seconds": 17.9
+    },
+    {
+      "id": "62f34c9ec533",
+      "title": "fly me to the moon (acapella cover)",
+      "tags": [
+        "acapella",
+        "no-drums",
+        "slow",
+        "swing"
+      ],
+      "tempo_true": 55.0,
+      "tempo_detected": 112.35,
+      "ratio": 2.043,
+      "verdict": "2x",
+      "bpb_detected": 4,
+      "grid_bpm": 112.35,
+      "grid_ok": true,
+      "seconds": 3.5
+    }
+  ]
+}

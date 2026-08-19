@@ -1,0 +1,69 @@
+{
+  "about": [
+    "真實錄音的速度標準答案，全部由使用者用耳朵聽 click.py 產生的節拍器混音判定。",
+    "判定時要問的是「腳會跟著哪個踩」，不是「有沒有踩在拍子上」——",
+    "半速的點擊必然也踩在拍子上，所以後者分不出八度歧義。",
+    "true_tempo 為 null 代表候選檔已產生但還沒聽。"
+  ],
+  "cases": [
+    {
+      "id": "78294d0054e7",
+      "title": "LOFI PIANO SAMPLE",
+      "true_tempo": 81.0,
+      "dated": "2026-08-18",
+      "tags": ["piano", "no-drums", "mid", "short"],
+      "notes": "24 秒取樣。"
+    },
+    {
+      "id": "3369e3eec558",
+      "title": "YOASOBI 勇者",
+      "true_tempo": 103.0,
+      "dated": "2026-08-18",
+      "tags": ["jpop", "drums", "vocals", "mid"],
+      "notes": null
+    },
+    {
+      "id": "647103e8fe0a",
+      "title": "Merry Christmas Mr. Lawrence",
+      "true_tempo": 63.0,
+      "dated": "2026-08-18",
+      "tags": ["piano", "no-drums", "slow", "rubato"],
+      "notes": "前快後慢，實測趨勢 −1.4 bpm/分鐘。逐段估計落在 76–78 而非 63，這個出入未解。"
+    },
+    {
+      "id": "62f34c9ec533",
+      "title": "fly me to the moon (acapella cover)",
+      "true_tempo": 55.0,
+      "dated": "2026-08-19",
+      "tags": ["acapella", "no-drums", "slow", "swing"],
+      "notes": "使用者聽 beatthis_half_54bpm 判定；54 與 steady_56 差 3.7%，同一層級。"
+    },
+    {
+      "id": "01c016f86751",
+      "title": "My Jealousy - 3rd Coast",
+      "true_tempo": null,
+      "dated": null,
+      "tags": ["vocals", "drums"],
+      "candidates": [65, 129, 194],
+      "notes": "候選檔已產生，待聽。"
+    },
+    {
+      "id": "514bcf1c1cb9",
+      "title": "Alexandr Ossipov - Hide and Seek (CC)",
+      "true_tempo": null,
+      "dated": null,
+      "tags": ["piano", "no-drums"],
+      "candidates": [52, 103, 155],
+      "notes": "候選檔已產生，待聽。"
+    },
+    {
+      "id": "c0465019d1ed",
+      "title": "勇者 Ru's Piano Cover",
+      "true_tempo": null,
+      "dated": null,
+      "tags": ["piano", "no-drums", "cover"],
+      "candidates": [54, 108, 162],
+      "notes": "與 3369e3eec558 同曲的鋼琴改編，可對照編曲差異對速度偵測的影響。"
+    }
+  ]
+}
