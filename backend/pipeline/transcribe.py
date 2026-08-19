@@ -42,7 +42,12 @@ PROFILES = {
     # threshold with a low frame threshold is what a sung line wants: demand
     # real evidence to start a note, then track it loosely so vibrato does not
     # chop it into fragments.
-    "vocals": dict(onset_threshold=0.80, frame_threshold=0.16,
+    #
+    # 0.80 -> 0.70 once `make_monophonic` stopped discarding quiet notes. The
+    # two interact: while overlap resolution dropped anything quieter than its
+    # neighbour, a lower onset threshold only added notes that were then thrown
+    # away, so the sweep saw no gain from lowering it. It does now.
+    "vocals": dict(onset_threshold=0.70, frame_threshold=0.16,
                    minimum_note_length=100.0, minimum_frequency=75.0,
                    maximum_frequency=1200.0, melodia_trick=True),
     "bass": dict(onset_threshold=0.45, frame_threshold=0.30,
@@ -105,11 +110,29 @@ def suppress_harmonics(notes: list[Note], ratio: float = 0.6) -> list[Note]:
     return keep
 
 
-def make_monophonic(notes: list[Note]) -> list[Note]:
-    """Reduce to a single line, keeping the loudest note wherever notes overlap.
+# A note lying entirely inside a louder one, at less than this share of its
+# velocity, is leftover harmony or an artefact rather than the next melody note.
+CONTAINED_RATIO = 0.7
+# Onsets closer together than this are the same attack detected twice.
+SIMULTANEOUS = 0.06
 
-    Loudness beats pitch height as a melody cue: the sung line dominates the
-    vocal stem's energy, while leftover harmony and bleed sit underneath it.
+
+def make_monophonic(notes: list[Note]) -> list[Note]:
+    """Reduce to a single line by truncating held notes, not by discarding quiet ones.
+
+    An earlier version kept the louder note wherever two overlapped, which cost
+    far more than it removed: basic-pitch runs a sustained note's detected end
+    well past its real one on reverberant material, so the *next* melody note
+    would arrive while the previous was nominally still sounding and be dropped
+    for being quieter. Measured on the benchmark's full_band case, that alone
+    took melody recall down to 0.562 while precision sat at 0.900 — the notes
+    were being found and then thrown away.
+
+    Overlap on its own is therefore treated as a held note that outstayed its
+    welcome: clip the earlier note and keep both. Only a note *contained* within
+    a louder one is dropped, which is the shape harmony and artefacts actually
+    have. (`suppress_harmonics` has already removed the overtones it can
+    identify by interval; this catches the rest.)
     """
     if not notes:
         return []
@@ -121,15 +144,20 @@ def make_monophonic(notes: list[Note]) -> list[Note]:
             result.append(note)
             continue
         prev = result[-1]
-        if note.start < prev.end - 0.01:              # overlapping
-            if note.velocity > prev.velocity:
-                prev.end = min(prev.end, note.start)
-                if prev.duration < 0.05:
-                    result.pop()
-                result.append(note)
-            # quieter overlapping note is accompaniment -> drop it
-        else:
+        if note.start >= prev.end - 0.01:             # no overlap, nothing to resolve
             result.append(note)
+            continue
+        if (note.end <= prev.end + 0.05
+                and note.velocity < prev.velocity * CONTAINED_RATIO):
+            continue                                  # sits inside a louder note
+        if note.velocity > prev.velocity and note.start - prev.start < SIMULTANEOUS:
+            result.pop()                              # same attack, keep the louder
+            result.append(note)
+            continue
+        prev.end = min(prev.end, note.start)          # held too long — clip it
+        if prev.duration < 0.05:
+            result.pop()
+        result.append(note)
     return [n for n in result if n.duration >= 0.05]
 
 

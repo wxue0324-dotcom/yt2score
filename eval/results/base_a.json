@@ -1,0 +1,118 @@
+{
+  "label": "base_a",
+  "summary": {
+    "A_raw_f1": 0.766,
+    "A_final_f1": 0.766,
+    "B_final_f1": null,
+    "key_accuracy": null,
+    "tempo_err": null,
+    "seconds": 21.5
+  },
+  "cases": [
+    {
+      "case": "solo_melody",
+      "stage_a": {
+        "melody": {
+          "raw": {
+            "p": 0.625,
+            "r": 0.526,
+            "f1": 0.571,
+            "n_ref": 19,
+            "n_est": 16
+          },
+          "final": {
+            "p": 0.625,
+            "r": 0.526,
+            "f1": 0.571,
+            "n_ref": 19,
+            "n_est": 16
+          },
+          "tempo_detected": 95.7,
+          "tempo_err": 0.3
+        }
+      }
+    },
+    {
+      "case": "solo_piano",
+      "stage_a": {
+        "piano": {
+          "raw": {
+            "p": 0.882,
+            "r": 0.909,
+            "f1": 0.896,
+            "n_ref": 33,
+            "n_est": 34
+          },
+          "final": {
+            "p": 0.882,
+            "r": 0.909,
+            "f1": 0.896,
+            "n_ref": 33,
+            "n_est": 34
+          },
+          "tempo_detected": 83.4,
+          "tempo_err": 0.6
+        }
+      }
+    },
+    {
+      "case": "full_band",
+      "stage_a": {
+        "melody": {
+          "raw": {
+            "p": 0.9,
+            "r": 0.562,
+            "f1": 0.692,
+            "n_ref": 16,
+            "n_est": 10
+          },
+          "final": {
+            "p": 0.9,
+            "r": 0.562,
+            "f1": 0.692,
+            "n_ref": 16,
+            "n_est": 10
+          },
+          "tempo_detected": 112.3,
+          "tempo_err": 2.3
+        },
+        "piano": {
+          "raw": {
+            "p": 0.857,
+            "r": 0.857,
+            "f1": 0.857,
+            "n_ref": 21,
+            "n_est": 21
+          },
+          "final": {
+            "p": 0.857,
+            "r": 0.857,
+            "f1": 0.857,
+            "n_ref": 21,
+            "n_est": 21
+          },
+          "tempo_detected": 112.3,
+          "tempo_err": 2.3
+        },
+        "bass": {
+          "raw": {
+            "p": 0.786,
+            "r": 0.846,
+            "f1": 0.815,
+            "n_ref": 13,
+            "n_est": 14
+          },
+          "final": {
+            "p": 0.786,
+            "r": 0.846,
+            "f1": 0.815,
+            "n_ref": 13,
+            "n_est": 14
+          },
+          "tempo_detected": 112.3,
+          "tempo_err": 2.3
+        }
+      }
+    }
+  ]
+}
