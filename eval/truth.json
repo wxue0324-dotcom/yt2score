@@ -11,7 +11,12 @@
       "title": "LOFI PIANO SAMPLE",
       "true_tempo": 81.0,
       "dated": "2026-08-18",
-      "tags": ["piano", "no-drums", "mid", "short"],
+      "tags": [
+        "piano",
+        "no-drums",
+        "mid",
+        "short"
+      ],
       "notes": "24 秒取樣。"
     },
     {
@@ -19,7 +24,12 @@
       "title": "YOASOBI 勇者",
       "true_tempo": 103.0,
       "dated": "2026-08-18",
-      "tags": ["jpop", "drums", "vocals", "mid"],
+      "tags": [
+        "jpop",
+        "drums",
+        "vocals",
+        "mid"
+      ],
       "notes": null
     },
     {
@@ -27,7 +37,12 @@
       "title": "Merry Christmas Mr. Lawrence",
       "true_tempo": 63.0,
       "dated": "2026-08-18",
-      "tags": ["piano", "no-drums", "slow", "rubato"],
+      "tags": [
+        "piano",
+        "no-drums",
+        "slow",
+        "rubato"
+      ],
       "notes": "前快後慢，實測趨勢 −1.4 bpm/分鐘。逐段估計落在 76–78 而非 63，這個出入未解。"
     },
     {
@@ -35,7 +50,12 @@
       "title": "fly me to the moon (acapella cover)",
       "true_tempo": 55.0,
       "dated": "2026-08-19",
-      "tags": ["acapella", "no-drums", "slow", "swing"],
+      "tags": [
+        "acapella",
+        "no-drums",
+        "slow",
+        "swing"
+      ],
       "notes": "使用者聽 beatthis_half_54bpm 判定；54 與 steady_56 差 3.7%，同一層級。"
     },
     {
@@ -43,8 +63,15 @@
       "title": "My Jealousy - 3rd Coast",
       "true_tempo": null,
       "dated": null,
-      "tags": ["vocals", "drums"],
-      "candidates": [65, 129, 194],
+      "tags": [
+        "vocals",
+        "drums"
+      ],
+      "candidates": [
+        65,
+        129,
+        194
+      ],
       "notes": "候選檔已產生，待聽。"
     },
     {
@@ -52,8 +79,15 @@
       "title": "Alexandr Ossipov - Hide and Seek (CC)",
       "true_tempo": null,
       "dated": null,
-      "tags": ["piano", "no-drums"],
-      "candidates": [52, 103, 155],
+      "tags": [
+        "piano",
+        "no-drums"
+      ],
+      "candidates": [
+        52,
+        103,
+        155
+      ],
       "notes": "候選檔已產生，待聽。"
     },
     {
@@ -61,9 +95,110 @@
       "title": "勇者 Ru's Piano Cover",
       "true_tempo": null,
       "dated": null,
-      "tags": ["piano", "no-drums", "cover"],
-      "candidates": [54, 108, 162],
+      "tags": [
+        "piano",
+        "no-drums",
+        "cover"
+      ],
+      "candidates": [
+        54,
+        108,
+        162
+      ],
       "notes": "與 3369e3eec558 同曲的鋼琴改編，可對照編曲差異對速度偵測的影響。"
+    },
+    {
+      "id": "70352156e34d",
+      "title": "YOASOBI「アイドル」 Official Music Video",
+      "true_tempo": null,
+      "dated": null,
+      "tags": [
+        "jpop",
+        "drums",
+        "vocals",
+        "fast"
+      ],
+      "candidates": [
+        81,
+        108,
+        161
+      ],
+      "true_bpb": null,
+      "notes": "候選檔已產生，待聽。"
+    },
+    {
+      "id": "86649e196d92",
+      "title": "Avicii - Levels",
+      "true_tempo": null,
+      "dated": null,
+      "tags": [
+        "edm",
+        "drums",
+        "electronic"
+      ],
+      "candidates": [
+        62,
+        123,
+        185
+      ],
+      "true_bpb": null,
+      "notes": "候選檔已產生，待聽。"
+    },
+    {
+      "id": "5d73be3f9640",
+      "title": "Joe Hisaishi - Merry-Go-Round of Life (from “Howl’s Moving Castle”)",
+      "true_tempo": null,
+      "dated": null,
+      "tags": [
+        "orchestral",
+        "no-drums",
+        "waltz",
+        "3-4"
+      ],
+      "candidates": [
+        57,
+        86,
+        172
+      ],
+      "true_bpb": null,
+      "notes": "三拍子的真實錄音。程式判成 4/4 —— bpb 也需要人工確認。"
+    },
+    {
+      "id": "224c03d171b6",
+      "title": "Adele - Someone Like You (Official Music Video)",
+      "true_tempo": null,
+      "dated": null,
+      "tags": [
+        "ballad",
+        "vocals",
+        "piano",
+        "slow"
+      ],
+      "candidates": [
+        68,
+        91,
+        136
+      ],
+      "true_bpb": null,
+      "notes": "候選檔已產生，待聽。"
+    },
+    {
+      "id": "dac1eb38414d",
+      "title": "Kendrick Lamar - HUMBLE.",
+      "true_tempo": null,
+      "dated": null,
+      "tags": [
+        "hiphop",
+        "drums",
+        "halftime"
+      ],
+      "candidates": [
+        76,
+        114,
+        152
+      ],
+      "true_bpb": null,
+      "notes": "halftime 陷阱：寫譜的拍速與身體感覺的拍速可能差兩倍。"
     }
   ]
 }
