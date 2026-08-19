@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>yt2score · YouTube 自動採譜</title>
+<style>
+  :root {
+    --bg: #fafaf9; --panel: #fff; --ink: #1c1917; --muted: #78716c;
+    --line: #e7e5e4; --accent: #b45309; --accent-soft: #fef3c7;
+    --ok: #15803d; --warn: #b45309; --err: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --panel: #292524; --ink: #f5f5f4; --muted: #a8a29e;
+      --line: #44403c; --accent: #fbbf24; --accent-soft: #422006;
+      --ok: #4ade80; --warn: #fbbf24; --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.6 -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 40px 20px 80px; }
+  header h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px; margin-bottom: 18px;
+  }
+  form { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type=url] {
+    flex: 1 1 380px; padding: 11px 14px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink);
+  }
+  input[type=url]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button {
+    padding: 11px 22px; font-size: 15px; font-weight: 600; cursor: pointer;
+    border: none; border-radius: 8px; background: var(--accent); color: var(--bg);
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .opts { margin-top: 12px; font-size: 14px; color: var(--muted); }
+  .opts label { cursor: pointer; }
+
+  .bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .bar > div {
+    height: 100%; width: 0; background: var(--accent);
+    transition: width .4s ease; border-radius: 99px;
+  }
+  .log {
+    margin-top: 14px; max-height: 220px; overflow-y: auto; font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
+  }
+  .log div { padding: 2px 0; }
+  .log div:last-child { color: var(--ink); }
+
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 26px; margin: 4px 0 18px; }
+  .meta span { font-size: 14px; }
+  .meta b { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .tabs button {
+    background: none; color: var(--muted); border-radius: 0; font-weight: 500;
+    padding: 9px 16px; border-bottom: 2px solid transparent;
+  }
+  .tabs button[aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .pages { max-height: 78vh; overflow-y: auto; border-radius: 6px; }
+  .pages img, .pages object {
+    width: 100%; background: #fff; border: 1px solid var(--line);
+    border-radius: 6px; margin-bottom: 12px; display: block;
+  }
+  .dl { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .dl a {
+    padding: 8px 14px; font-size: 14px; text-decoration: none;
+    border: 1px solid var(--line); border-radius: 7px; color: var(--ink);
+  }
+  .dl a:hover { border-color: var(--accent); color: var(--accent); }
+
+  .note { font-size: 13px; padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; }
+  .note.warn { background: var(--accent-soft); color: var(--warn); }
+  .note.err { background: var(--accent-soft); color: var(--err); }
+  .stems div { font-size: 13px; color: var(--muted); }
+  .stems audio { width: 100%; margin-top: 4px; }
+  .stems > div { margin-bottom: 10px; }
+
+  .mainplayer {
+    margin: 18px 0 4px; padding: 14px 16px;
+    background: var(--accent-soft); border-radius: 10px;
+  }
+  .mainplayer .lbl { font-size: 13.5px; font-weight: 600; color: var(--accent); }
+  .mainplayer .hint { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .mainplayer audio { width: 100%; margin-top: 8px; }
+
+  .compare { display: grid; gap: 22px; grid-template-columns: 1fr 1fr; margin-top: 22px; }
+  @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
+  .compare h3 { font-size: 14px; margin: 0 0 4px; }
+  .compare .sub { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+  .hidden { display: none; }
+  footer { color: var(--muted); font-size: 12.5px; margin-top: 30px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>yt2score</h1>
+    <p>貼上 YouTube 連結，自動分軌採譜，產出五線譜、簡譜與可編輯的 MusicXML。</p>
+  </header>
+
+  <div class="card">
+    <form id="form">
+      <input type="url" id="url" required placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+      <button type="submit" id="go">開始採譜</button>
+    </form>
+    <div class="opts">
+      <label><input type="checkbox" id="drums" checked> 包含鼓組譜</label>
+    </div>
+  </div>
+
+  <div class="card hidden" id="progress">
+    <div class="bar"><div id="fill"></div></div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card hidden" id="result">
+    <h2 id="title" style="margin:0 0 4px;font-size:19px"></h2>
+    <div class="meta" id="meta"></div>
+    <div id="warnings"></div>
+    <div class="mainplayer hidden" id="mainPlayer">
+      <div class="lbl">▶ 試聽採譜結果</div>
+      <div class="hint">照著下面這份譜合成出來的聲音。和頁尾的原始音軌對照，就知道哪裡採錯了。</div>
+      <audio controls preload="metadata" id="fullAudio"></audio>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div id="panel"></div>
+    <div class="dl" id="downloads"></div>
+
+    <div class="compare">
+      <div>
+        <h3>分聲部試聽</h3>
+        <p class="sub">依照譜面合成，可單獨聽某一個聲部。</p>
+        <div class="stems" id="partAudio"></div>
+      </div>
+      <div>
+        <h3>原始音軌</h3>
+        <p class="sub">從原曲分離出來的真實錄音。</p>
+        <div class="stems" id="stems"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    採譜結果是機器聽寫的草稿，不是定稿。旋律線通常最準，密集的伴奏與鼓組誤差較大——
+    建議下載 MusicXML 後用 MuseScore 手動修正。<br>
+    所有運算都在你自己的電腦上完成，不會上傳任何資料。
+  </footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// Reopen whatever job the URL points at, so a refresh does not lose results.
+window.addEventListener("DOMContentLoaded", () => {
+  const id = location.hash.slice(1);
+  if (!/^[0-9a-f]{12}$/.test(id)) return;
+  jobId = id;
+  fetch(`/api/jobs/${id}`).then(r => r.ok ? r.json() : null).then(job => {
+    if (!job) return;
+    $("url").value = job.url || "";
+    if (job.status === "done" && job.result) {
+      render(job.result);
+    } else if (job.status !== "error") {
+      $("progress").classList.remove("hidden");
+      (job.log || []).forEach(l => logLine(`${String(l.pct).padStart(3)}%  ${l.msg}`));
+      $("go").disabled = true;
+      listen(id);
+    }
+  }).catch(() => {});
+});
+const STEM_NAMES = { vocals: "人聲", drums: "鼓組", bass: "貝斯", other: "其他樂器" };
+let jobId = null;
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const url = $("url").value.trim();
+  if (!url) return;
+
+  $("go").disabled = true;
+  $("progress").classList.remove("hidden");
+  $("result").classList.add("hidden");
+  $("log").innerHTML = "";
+  $("fill").style.width = "0%";
+
+  try {
+    const res = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, include_drums: $("drums").checked }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    jobId = (await res.json()).job_id;
+    location.hash = jobId;          // survive a reload
+    listen(jobId);
+  } catch (err) {
+    logLine("錯誤：" + err.message);
+    $("go").disabled = false;
+  }
+});
+
+function logLine(msg) {
+  const d = document.createElement("div");
+  d.textContent = msg;
+  $("log").appendChild(d);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+function listen(id) {
+  const src = new EventSource(`/api/jobs/${id}/events`);
+  src.onmessage = ev => {
+    const d = JSON.parse(ev.data);
+    if (d.type === "log") {
+      $("fill").style.width = d.pct + "%";
+      logLine(`${String(d.pct).padStart(3)}%  ${d.msg}`);
+    } else if (d.type === "done") {
+      src.close();
+      $("go").disabled = false;
+      render(d.result);
+    } else if (d.type === "error") {
+      src.close();
+      $("go").disabled = false;
+      $("warnings").innerHTML =
+        `<div class="note err" style="white-space:pre-wrap">${esc(d.error)}</div>`;
+      $("result").classList.remove("hidden");
+    }
+  };
+  src.onerror = () => { src.close(); $("go").disabled = false; };
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function fileUrl(p) { return `/api/jobs/${jobId}/files/${p}`; }
+
+function render(r) {
+  $("result").classList.remove("hidden");
+  $("title").textContent = r.title;
+
+  const mins = Math.floor(r.duration / 60), secs = Math.round(r.duration % 60);
+  const counts = Object.entries(r.note_counts)
+    .map(([k, v]) => `<span>${esc(k)} <b>${v}</b></span>`).join("");
+  $("meta").innerHTML =
+    `<span>調性 <b>${esc(r.key_name)}</b></span>` +
+    `<span>速度 <b>${r.tempo}</b> BPM</span>` +
+    `<span>拍號 <b>${r.beats_per_bar}/4</b></span>` +
+    `<span>長度 <b>${mins}:${String(secs).padStart(2, "0")}</b></span>` + counts;
+
+  $("warnings").innerHTML = (r.warnings || [])
+    .map(w => `<div class="note warn">${esc(w)}</div>`).join("");
+
+  const views = [];
+  if (r.files.score_svg_pages) views.push(["五線譜", r.files.score_svg_pages]);
+  if (r.files.jianpu_svg_pages) views.push(["簡譜", r.files.jianpu_svg_pages]);
+
+  $("tabs").innerHTML = views
+    .map(([name], i) => `<button role="tab" aria-selected="${i === 0}" data-i="${i}">${name}</button>`)
+    .join("");
+  $("tabs").querySelectorAll("button").forEach(b =>
+    b.addEventListener("click", () => showView(views, +b.dataset.i)));
+  if (views.length) showView(views, 0);
+  else $("panel").innerHTML = `<div class="note warn">沒有可預覽的譜面。</div>`;
+
+  const links = [
+    ["五線譜 PDF", r.files.score_pdf],
+    ["MusicXML（可編輯）", r.files.score_musicxml],
+    ["MIDI", r.files.score_midi],
+    ["簡譜（可列印）", r.files.jianpu_html],
+  ].filter(([, p]) => p);
+  $("downloads").innerHTML = links
+    .map(([label, p]) => `<a href="${fileUrl(p)}" download>${label}</a>`).join("");
+
+  if (r.files.audio_full) {
+    $("mainPlayer").classList.remove("hidden");
+    $("fullAudio").src = fileUrl(r.files.audio_full);
+  } else {
+    $("mainPlayer").classList.add("hidden");
+  }
+
+  $("partAudio").innerHTML = Object.entries(r.files.audio_parts || {})
+    .map(([name, p]) =>
+      `<div>${esc(name)}<audio controls preload="none" src="${fileUrl(p)}"></audio></div>`)
+    .join("") || `<div>沒有可試聽的聲部。</div>`;
+
+  $("stems").innerHTML = Object.entries(r.files)
+    .filter(([k]) => k.startsWith("stem_"))
+    .map(([k, p]) => {
+      const name = STEM_NAMES[k.slice(5)] || k.slice(5);
+      return `<div>${name}<audio controls preload="none" src="${fileUrl(p)}"></audio></div>`;
+    }).join("");
+
+  soloPlayback();
+}
+
+// Comparing parts only works if you hear one at a time.
+function soloPlayback() {
+  const players = [...document.querySelectorAll("audio")];
+  players.forEach(a => {
+    a.onplay = () => players.forEach(o => { if (o !== a) o.pause(); });
+  });
+}
+
+function showView(views, idx) {
+  $("tabs").querySelectorAll("button").forEach(b =>
+    b.setAttribute("aria-selected", +b.dataset.i === idx));
+  const pages = views[idx][1];
+  $("panel").innerHTML = `<div class="pages">` +
+    pages.map(p => `<img src="${fileUrl(p)}" alt="樂譜第 ${pages.indexOf(p) + 1} 頁" loading="lazy">`).join("") +
+    `</div>`;
+}
+</script>
+</body>
+</html>

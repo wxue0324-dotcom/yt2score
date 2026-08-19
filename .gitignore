@@ -1,0 +1,15 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 工作目錄：下載的音訊、分軌、產出的譜（含受版權保護的內容，不上傳）
+work/
+
+# 評測用的節拍器混音檔（同樣含原曲音訊）
+eval/clicks/
+eval/.cache/
+
+# macOS
+.DS_Store

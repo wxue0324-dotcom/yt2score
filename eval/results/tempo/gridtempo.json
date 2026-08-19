@@ -1,0 +1,81 @@
+{
+  "label": "gridtempo",
+  "summary": {
+    "cases": 5,
+    "tempo_ok": 2,
+    "metre_ok": 4,
+    "grid_ok": 4,
+    "errors": [
+      "2x",
+      "3:2",
+      "half"
+    ]
+  },
+  "cases": [
+    {
+      "case": "slow_dense",
+      "tempo_true": 60.0,
+      "tempo_detected": 117.45,
+      "ratio": 1.958,
+      "verdict": "2x",
+      "bpb_true": 4,
+      "bpb_detected": 4,
+      "bpb_ok": true,
+      "grid_bpm": 117.45,
+      "grid_ok": true,
+      "seconds": 3.8
+    },
+    {
+      "case": "fast_driving",
+      "tempo_true": 168.0,
+      "tempo_detected": 172.27,
+      "ratio": 1.025,
+      "verdict": "ok",
+      "bpb_true": 4,
+      "bpb_detected": 4,
+      "bpb_ok": true,
+      "grid_bpm": 172.27,
+      "grid_ok": true,
+      "seconds": 0.9
+    },
+    {
+      "case": "triplet_slow",
+      "tempo_true": 76.0,
+      "tempo_detected": 117.45,
+      "ratio": 1.545,
+      "verdict": "3:2",
+      "bpb_true": 4,
+      "bpb_detected": 3,
+      "bpb_ok": false,
+      "grid_bpm": 112.35,
+      "grid_ok": false,
+      "seconds": 1.5
+    },
+    {
+      "case": "waltz_fast",
+      "tempo_true": 150.0,
+      "tempo_detected": 152.0,
+      "ratio": 1.013,
+      "verdict": "ok",
+      "bpb_true": 3,
+      "bpb_detected": 3,
+      "bpb_ok": true,
+      "grid_bpm": 152.0,
+      "grid_ok": true,
+      "seconds": 0.7
+    },
+    {
+      "case": "syncopated_mid",
+      "tempo_true": 100.0,
+      "tempo_detected": 50.17,
+      "ratio": 0.502,
+      "verdict": "half",
+      "bpb_true": 4,
+      "bpb_detected": 4,
+      "bpb_ok": true,
+      "grid_bpm": 50.17,
+      "grid_ok": true,
+      "seconds": 1.3
+    }
+  ]
+}

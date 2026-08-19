@@ -1,0 +1,16 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+yt-dlp>=2025.1.15
+torch>=2.4.0
+torchaudio>=2.4.0
+torchcodec>=0.4
+demucs==4.0.1
+basic-pitch[onnx]==0.4.0
+music21==9.3.0
+librosa==0.10.2.post1
+pretty_midi==0.2.10
+soundfile==0.12.1
+numpy<2
+scipy>=1.11
+setuptools>=70,<82
