@@ -166,12 +166,14 @@ def split_hands(notes: list[GridNote], split_pitch: int = 60) -> tuple[list[Grid
     return right, left
 
 
-def trim_leading_rest(parts: dict, drums_key: str = "drums",
-                      beats_per_bar: int = 4) -> dict:
-    """Remove whole empty bars at the start, shifting every part by the same amount.
+def leading_rest_shift(parts: dict, drums_key: str = "drums",
+                       beats_per_bar: int = 4) -> float:
+    """How many quarter-lengths of empty bars sit before the first note.
 
-    Applied per part this would desynchronise the score, so it takes the whole
-    set at once and uses one shift for all of them.
+    Exposed separately from `trim_leading_rest` because callers that want to
+    line the score up against the original recording need the same number: once
+    the rest is trimmed, score time 0 no longer means audio time 0, and nothing
+    downstream can recover the difference.
     """
     starts = []
     for key, value in parts.items():
@@ -182,10 +184,19 @@ def trim_leading_rest(parts: dict, drums_key: str = "drums",
         else:
             starts.append(min(n.offset for n in value))
     if not starts:
-        return parts
-
+        return 0.0
     bar = float(beats_per_bar)
-    shift = np.floor(min(starts) / bar) * bar
+    return max(0.0, float(np.floor(min(starts) / bar) * bar))
+
+
+def trim_leading_rest(parts: dict, drums_key: str = "drums",
+                      beats_per_bar: int = 4) -> dict:
+    """Remove whole empty bars at the start, shifting every part by the same amount.
+
+    Applied per part this would desynchronise the score, so it takes the whole
+    set at once and uses one shift for all of them.
+    """
+    shift = leading_rest_shift(parts, drums_key, beats_per_bar)
     if shift <= 0:
         return parts
 

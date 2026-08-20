@@ -16,8 +16,9 @@ from . import jianpu as jianpu_mod
 from . import score as score_mod
 from . import separate as separate_mod
 from . import transcribe as transcribe_mod
-from .quantize import (BeatGrid, clean_part as clean, quantize_drums,
-                       quantize_notes, split_hands, trim_leading_rest)
+from .quantize import (BeatGrid, clean_part as clean, leading_rest_shift,
+                       quantize_drums, quantize_notes, split_hands,
+                       trim_leading_rest)
 
 Progress = Callable[[int, str], None]
 
@@ -84,7 +85,8 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
     if "vocals" in present:
         progress(62, "採譜：主唱旋律…")
         raw = transcribe_mod.transcribe_pitched(stems["vocals"], "vocals")
-        raw_parts["vocal"] = transcribe_mod.make_monophonic(raw)
+        raw_parts["vocal"] = transcribe_mod.calibrate_velocity(
+            transcribe_mod.make_monophonic(raw), stems["vocals"])
         if not raw_parts["vocal"]:
             warnings.append("人聲軌沒有偵測到可用的旋律。")
     elif "vocals" in stems:
@@ -96,13 +98,14 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
     progress(70, "採譜：伴奏（鋼琴大譜表）…")
     accomp = separate_mod.make_accompaniment(stems, workdir)
     if accomp:
-        raw_parts["accomp"] = transcribe_mod.transcribe_pitched(
-            accomp, "accompaniment")
+        raw_parts["accomp"] = transcribe_mod.calibrate_velocity(
+            transcribe_mod.transcribe_pitched(accomp, "accompaniment"), accomp)
 
     if "bass" in present:
         progress(78, "採譜：貝斯…")
         raw = transcribe_mod.transcribe_pitched(stems["bass"], "bass")
-        raw_parts["bass"] = transcribe_mod.make_monophonic(raw)
+        raw_parts["bass"] = transcribe_mod.calibrate_velocity(
+            transcribe_mod.make_monophonic(raw), stems["bass"])
 
     if include_drums and "drums" in present:
         progress(83, "採譜：鼓組…")
@@ -151,6 +154,11 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
         )
 
     progress(87, "排版五線譜…")
+    # Where score time 0 lands in the recording, kept before the trim discards it.
+    lead_shift = leading_rest_shift(parts_data, beats_per_bar=analysis.beats_per_bar)
+    first_offset = min((min(n.offset for n in notes) for name, notes in parts_data.items()
+                        if name != "drums" and notes), default=lead_shift)
+    score_anchor = grid.to_seconds(max(lead_shift, first_offset))
     parts_data = trim_leading_rest(parts_data, beats_per_bar=analysis.beats_per_bar)
     sc = score_mod.build_score(parts_data, analysis, track.title, track.uploader)
     files_abs = score_mod.export(sc, outdir, "score")
@@ -162,6 +170,12 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
     audio_parts: dict = {}
     audio_full = audio_mod.render_score_audio(sc, outdir)
     audio_parts = audio_mod.render_part_audio(sc, outdir)
+    compare_sources = dict(stems)
+    if accomp:
+        compare_sources["accompaniment"] = accomp
+    audio_compare = audio_mod.render_comparisons(
+        audio_parts, compare_sources, outdir, anchor=score_anchor,
+        reference=audio_full)
     if audio_full is None:
         warnings.append("無法合成試聽音檔（MuseScore 音訊匯出失敗）。")
 
@@ -189,6 +203,11 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
         files["audio_parts"] = {
             label: str(path.relative_to(workdir))
             for label, path in audio_parts.items()
+        }
+    if audio_compare:
+        files["audio_compare"] = {
+            label: str(path.relative_to(workdir))
+            for label, path in audio_compare.items()
         }
     for stem, path in stems.items():
         files[f"stem_{stem}"] = str(path.relative_to(workdir))

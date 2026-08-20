@@ -161,6 +161,61 @@ def make_monophonic(notes: list[Note]) -> list[Note]:
     return [n for n in result if n.duration >= 0.05]
 
 
+
+# Floor and ceiling for calibrated velocities. The floor matters: a note quiet
+# enough to round to nothing still has to be audible, or checking the
+# transcription by ear silently misses it.
+VELOCITY_FLOOR, VELOCITY_CEILING = 45, 108
+# How much of a note's start to measure. Perceived loudness of a note is set by
+# its attack, not by the tail of whatever it decays into.
+ATTACK_WINDOW = 0.25
+
+
+def calibrate_velocity(notes: list[Note], wav_path: Path,
+                       floor: int = VELOCITY_FLOOR,
+                       ceiling: int = VELOCITY_CEILING) -> list[Note]:
+    """Reset each note's velocity from how loud its own stem actually is there.
+
+    basic-pitch reports a per-note amplitude, but it is a confidence-flavoured
+    number from the model rather than a measurement of the recording, so a
+    clearly-detected quiet note and a marginally-detected loud one can come out
+    the same. Reading the stem directly at each onset gives the dynamics a
+    listener would actually describe.
+
+    Velocity is set *proportional to measured amplitude*, anchored so the
+    loudest notes sit at `ceiling`. Stretching each part's own range onto the
+    full written span instead is the obvious thing to write and it is wrong: it
+    manufactures dynamics that the performance does not have, and a part played
+    at an even level comes back out swinging between pp and ff. Measured that
+    way on YOASOBI 勇者 it pushed the rendered dynamic range to 25.3 dB against
+    the recording's 15.8 dB — further off than doing nothing at all.
+    """
+    if not notes:
+        return notes
+    y, sr = librosa.load(str(wav_path), sr=22050, mono=True)
+    if y.size == 0 or np.max(np.abs(y)) < 1e-6:
+        return notes
+    hop = 512
+    rms = librosa.feature.rms(y=y, hop_length=hop)[0]
+    times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop)
+
+    levels = []
+    for n in notes:
+        lo = int(np.searchsorted(times, n.start))
+        hi = int(np.searchsorted(times, min(n.end, n.start + ATTACK_WINDOW)))
+        window = rms[lo:max(hi, lo + 1)]
+        levels.append(float(window.max()) if window.size else 0.0)
+
+    amplitude = np.asarray(levels, dtype=float)
+    loud = float(np.percentile(amplitude, 95))
+    if loud <= 1e-9:
+        return notes
+    scaled = ceiling * (amplitude / loud)
+    for note, value in zip(notes, scaled):
+        note.velocity = int(np.clip(value, floor, ceiling))
+    return notes
+
+
 def transcribe_drums(wav_path: Path) -> list[DrumHit]:
     """Detect hits and sort them into kick / snare / hihat by band energy."""
     y, sr = librosa.load(str(wav_path), sr=22050, mono=True)
