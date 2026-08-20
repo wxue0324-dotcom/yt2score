@@ -151,6 +151,15 @@
         <div class="stems" id="stems"></div>
       </div>
     </div>
+
+    <div id="abBlock" class="hidden" style="margin-top:18px">
+      <h3>左右耳對照 🎧</h3>
+      <p class="sub">
+        <strong>請戴耳機</strong>：左耳是原曲的該聲部，右耳是採譜結果，時間已對齊。
+        用喇叭聽會混成一團，就失去意義了。哪個音抓錯、哪個音漏掉，並排聽最快。
+      </p>
+      <div class="stems" id="abAudio"></div>
+    </div>
   </div>
 
   <footer>
@@ -293,6 +302,13 @@ function render(r) {
     .map(([name, p]) =>
       `<div>${esc(name)}<audio controls preload="none" src="${fileUrl(p)}"></audio></div>`)
     .join("") || `<div>沒有可試聽的聲部。</div>`;
+
+  const ab = Object.entries(r.files.audio_compare || {});
+  $("abBlock").classList.toggle("hidden", ab.length === 0);
+  $("abAudio").innerHTML = ab
+    .map(([name, p]) =>
+      `<div>${esc(name)}<audio controls preload="none" src="${fileUrl(p)}"></audio></div>`)
+    .join("");
 
   $("stems").innerHTML = Object.entries(r.files)
     .filter(([k]) => k.startsWith("stem_"))
