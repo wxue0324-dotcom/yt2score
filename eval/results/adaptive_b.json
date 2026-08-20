@@ -1,0 +1,107 @@
+{
+  "label": "adaptive_b",
+  "summary": {
+    "A_raw_f1": null,
+    "A_final_f1": null,
+    "B_final_f1": 0.732,
+    "key_accuracy": 1.0,
+    "tempo_err": 18.8,
+    "seconds": 40.5
+  },
+  "cases": [
+    {
+      "case": "solo_melody",
+      "stage_b": {
+        "tempo_true": 96.0,
+        "tempo_detected": 95.7,
+        "tempo_err": 0.3,
+        "key_true": "C major",
+        "parts": {
+          "melody": {
+            "p": 0.5,
+            "r": 0.684,
+            "f1": 0.578,
+            "n_ref": 19,
+            "n_est": 26
+          }
+        },
+        "key_detected": "C major",
+        "key_ok": true
+      }
+    },
+    {
+      "case": "solo_piano",
+      "stage_b": {
+        "tempo_true": 84.0,
+        "tempo_detected": 83.4,
+        "tempo_err": 0.6,
+        "key_true": "F major",
+        "parts": {
+          "piano": {
+            "p": 0.882,
+            "r": 0.909,
+            "f1": 0.896,
+            "n_ref": 33,
+            "n_est": 34
+          }
+        },
+        "key_detected": "F major",
+        "key_ok": true
+      }
+    },
+    {
+      "case": "full_band",
+      "stage_b": {
+        "tempo_true": 110.0,
+        "tempo_detected": 112.3,
+        "tempo_err": 2.3,
+        "key_true": "G major",
+        "parts": {
+          "melody": {
+            "p": 0.765,
+            "r": 0.812,
+            "f1": 0.788,
+            "n_ref": 16,
+            "n_est": 17
+          },
+          "piano": {
+            "p": 0.439,
+            "r": 0.857,
+            "f1": 0.581,
+            "n_ref": 21,
+            "n_est": 41
+          },
+          "bass": {
+            "p": 0.65,
+            "r": 1.0,
+            "f1": 0.788,
+            "n_ref": 13,
+            "n_est": 20
+          }
+        },
+        "key_detected": "G major",
+        "key_ok": true
+      }
+    },
+    {
+      "case": "soft_and_short",
+      "stage_b": {
+        "tempo_true": 80.0,
+        "tempo_detected": 152.0,
+        "tempo_err": 72.0,
+        "key_true": "C major",
+        "parts": {
+          "melody": {
+            "p": 0.825,
+            "r": 0.702,
+            "f1": 0.759,
+            "n_ref": 47,
+            "n_est": 40
+          }
+        },
+        "key_detected": "C major",
+        "key_ok": true
+      }
+    }
+  ]
+}

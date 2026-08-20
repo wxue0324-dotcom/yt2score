@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from music21 import chord, clef, instrument, key, layout, meter, note, stream, tempo
+from music21 import (chord, clef, dynamics, instrument, key, layout, meter,
+                     note, stream, tempo)
 
 
 @dataclass
@@ -107,6 +108,78 @@ def full_band() -> Case:
                 {"melody": _truth(mel), "piano": _truth(pno), "bass": _truth(bas)})
 
 
+def soft_and_short() -> Case:
+    """Quiet notes and sixteenth notes — the two things a draft quietly loses.
+
+    The other cases are all crotchets and minims at one dynamic, so every stage
+    that discards material by *duration* or by *velocity* scores untouched on
+    them. This case separates the two conditions so a change can be read:
+
+        bars 1, 6   loud crotchets          — the control
+        bars 2, 5   eighths, loud then pp   — dynamics alone
+        bar  4      loud semiquaver run     — brevity alone
+        bars 3, 7   pp, and pp semiquavers  — both together, the worst case
+
+    Tempo is deliberately slow: at 80 BPM a semiquaver lasts 188ms, comfortably
+    above the 100ms `minimum_note_length` the vocal profile imposes, so anything
+    lost here is lost by choice rather than by that floor.
+    """
+    bpm, tonic = 80.0, "C"
+    events = []
+    #                    bar 1 — f, crotchets (control)
+    for i, pitch in enumerate([60, 62, 64, 65]):
+        events.append((float(i), 1.0, (pitch,)))
+    #                    bar 2 — f, quavers
+    for i, pitch in enumerate([67, 65, 64, 62, 60, 62, 64, 65]):
+        events.append((4.0 + i * 0.5, 0.5, (pitch,)))
+    #                    bar 3 — pp, crotchets
+    for i, pitch in enumerate([67, 69, 71, 72]):
+        events.append((8.0 + i, 1.0, (pitch,)))
+    #                    bar 4 — f, semiquaver run then a minim
+    for i, pitch in enumerate([72, 71, 69, 67, 65, 64, 62, 60]):
+        events.append((12.0 + i * 0.25, 0.25, (pitch,)))
+    events.append((14.0, 2.0, (60,)))
+    #                    bar 5 — pp, quavers
+    for i, pitch in enumerate([60, 62, 64, 65, 67, 69, 71, 72]):
+        events.append((16.0 + i * 0.5, 0.5, (pitch,)))
+    #                    bar 6 — f, crotchets (control)
+    for i, pitch in enumerate([72, 71, 69, 67]):
+        events.append((20.0 + i, 1.0, (pitch,)))
+    #                    bar 7 — pp, semiquaver run then a minim
+    for i, pitch in enumerate([67, 69, 71, 72, 71, 69, 67, 65]):
+        events.append((24.0 + i * 0.25, 0.25, (pitch,)))
+    events.append((26.0, 2.0, (64,)))
+    #                    bar 8 — closing semibreve
+    events.append((28.0, 4.0, (60,)))
+
+    ks, ts = key.Key(tonic, "major"), meter.TimeSignature("4/4")
+    mm = tempo.MetronomeMark(number=bpm)
+    part = _part(events, "Melody", clef.TrebleClef(), instrument.Soprano(),
+                 ks, ts, mm)
+    # MuseScore synthesises from these, which is what puts a real level
+    # difference into the rendered audio — a velocity set on the note objects
+    # would not survive the MusicXML round-trip.
+    for offset, mark in ((0.0, "f"), (8.0, "pp"), (12.0, "f"),
+                         (16.0, "pp"), (20.0, "f"), (24.0, "pp")):
+        part.insert(offset, dynamics.Dynamic(mark))
+
+    sc = stream.Score()
+    sc.insert(0, part)
+    return Case("soft_and_short", sc, bpm, "C major", {"melody": _truth(events)})
+
+
+# Offset ranges within `soft_and_short`, so recall can be reported per condition
+# instead of averaged into one number that hides which kind of note went missing.
+SOFT_SHORT_BANDS = {
+    "響·四分": [(0.0, 4.0), (20.0, 24.0)],
+    "響·八分": [(4.0, 8.0)],
+    "響·十六分": [(12.0, 14.0)],
+    "弱·四分": [(8.0, 12.0)],
+    "弱·八分": [(16.0, 20.0)],
+    "弱·十六分": [(24.0, 26.0)],
+}
+
+
 def isolate(case: Case, part_names: list[str]) -> stream.Score:
     """A score holding only the named staves — used to render a part alone."""
     import copy
@@ -126,4 +199,4 @@ PART_STAVES = {
     "bass": ["Bass"],
 }
 
-ALL_CASES = (solo_melody, solo_piano, full_band)
+ALL_CASES = (solo_melody, solo_piano, full_band, soft_and_short)

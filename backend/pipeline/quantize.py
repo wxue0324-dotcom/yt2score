@@ -9,10 +9,29 @@ from .analyze import Analysis
 from .transcribe import DrumHit, Note
 
 # Slots per beat. Transcription timing jitter is roughly a 30th note, so a
-# 16th-note grid mostly encodes noise; 8ths give a far more readable draft.
+# 16th-note grid mostly encodes noise on material that has no semiquavers in
+# it; 8ths give a far more readable draft. Material that *does* carry
+# semiquavers loses them entirely at 8ths, so the choice is made per part by
+# `choose_subdivision` rather than fixed here.
 SUBDIVISION = 2
 FINE_SUBDIVISION = 4
 MIN_SLOTS = 1
+
+# What share of the coarse grid's residual the finer grid has to remove before
+# it is judged to be describing real semiquavers rather than jitter.
+#
+# Deliberately a ratio, not an absolute distance in beats. Separated stems carry
+# far more onset jitter than a clean render — the same part measured after
+# Demucs shows roughly double the residual against either grid — so an absolute
+# threshold tuned on clean audio fires on everything once separation is in the
+# path, which is exactly what happened: every stem-fed part chose 16ths and
+# full_band's melody fell from 0.909 to 0.788 end to end. As a proportion the
+# two conditions agree. Measured across both conditions: parts with no
+# semiquavers in them score 0.00–0.43, the semiquaver case scores 0.57 clean
+# and 0.57 through separation. The threshold sits between those, nearer the
+# middle than either edge, because the closest non-semiquaver case (full_band's
+# melody after separation, 17 notes) is the noisiest estimate in the set.
+FINE_MARGIN = 0.50
 
 
 @dataclass
@@ -61,8 +80,46 @@ class BeatGrid:
         return round(self.to_beats(seconds) * subdivision) / subdivision
 
 
+def choose_subdivision(notes: list[Note], grid: BeatGrid,
+                       margin: float = FINE_MARGIN) -> int:
+    """Pick the 8th- or 16th-note grid by asking which one the onsets already fit.
+
+    Snapping to a grid coarser than the music moves every off-grid note onto a
+    neighbour, where `_merge_duplicates` and the engraver fold it into whatever
+    is already there — semiquavers do not come out inaccurate, they come out
+    missing. Snapping to one finer than the music is the milder failure: the
+    notes survive, the draft just carries more subdivisions than a person would
+    have written.
+
+    So rather than assume, compare how far the onsets actually sit from each
+    grid. Material genuinely written in quavers is no closer to the 16th grid
+    than to the 8th — its residual is timing jitter, which both grids see
+    equally. Material carrying semiquavers is much closer to the finer one,
+    because half its onsets lie a full 16th away from every 8th.
+
+    The comparison is proportional so that it survives separation, which
+    roughly doubles the residual without changing what was written.
+    """
+    if len(notes) < 8:
+        return SUBDIVISION
+    positions = np.array([grid.to_beats(n.start) for n in notes], dtype=float)
+
+    def residual(subdivision: int) -> float:
+        scaled = positions * subdivision
+        return float(np.mean(np.abs(scaled - np.round(scaled)) / subdivision))
+
+    coarse = residual(SUBDIVISION)
+    if coarse <= 1e-9:
+        return SUBDIVISION
+    improvement = (coarse - residual(FINE_SUBDIVISION)) / coarse
+    return FINE_SUBDIVISION if improvement > margin else SUBDIVISION
+
+
 def quantize_notes(notes: list[Note], grid: BeatGrid,
-                   subdivision: int = SUBDIVISION) -> list[GridNote]:
+                   subdivision: int | None = None) -> list[GridNote]:
+    """Snap notes onto the grid. `subdivision=None` picks one per part."""
+    if subdivision is None:
+        subdivision = choose_subdivision(notes, grid)
     out: list[GridNote] = []
     step = 1.0 / subdivision
     for n in notes:
