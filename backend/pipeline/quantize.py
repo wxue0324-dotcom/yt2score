@@ -150,19 +150,110 @@ def quantize_drums(hits: list[DrumHit], grid: BeatGrid) -> list[tuple[float, str
     return sorted({(max(0.0, grid.snap(h.time)), h.kind) for h in hits})
 
 
-def split_hands(notes: list[GridNote], split_pitch: int = 60) -> tuple[list[GridNote], list[GridNote]]:
-    """Divide accompaniment notes into right hand / left hand around middle C.
+# Semitones one hand covers without repositioning. A window narrower than this
+# is one hand playing, not two hands close together.
+HAND_SPAN = 14
+# Where a split may sit. Outside this it is not dividing hands, it is slicing
+# through the middle of one of them.
+SPLIT_RANGE = (40, 79)
+# Context used to place each split, in quarter-lengths — two bars of 4/4.
+SPLIT_WINDOW = 8.0
+# A gap narrower than this is spacing inside one hand's chord, not the space
+# between two hands.
+MIN_HAND_GAP = 3
+# Each side of a candidate gap has to carry at least this share of the window's
+# notes, and at least two of them.
+MIN_HAND_SHARE = 0.15
 
-    A fixed split at C4 misfires on bass-heavy or treble-heavy material, so the
-    point moves to the median of the actual pitch range first.
+
+def _window_split(notes: list[GridNote], default: int) -> int:
+    """Where the two hands part company in one window of music.
+
+    The hands are separated by a band of pitch nobody is playing, so the split
+    goes in the widest such band — but only where there is real writing on both
+    sides of it. That last condition is what makes it survive contact with a
+    transcription: a couple of stray detections below the left hand open a gap
+    wider than the true one, and taking the widest gap unconditionally puts the
+    split there and moves an entire hand onto the wrong staff. Measured on
+    `roaming_piano`, one window had its hands 17 semitones apart and the split
+    landed on a false 10-semitone gap held up by two spurious notes.
+
+    Weighting a pitch histogram by note length and splitting at its valley was
+    tried instead and is worse (solo_piano 1.000 -> 0.800): held chords in the
+    left hand outweigh a single-note melody in the right, so the density peak
+    sits on the left hand and drags the valley up into the melody.
+    """
+    if len(notes) < 2:
+        return default
+    pitches = sorted(n.pitch for n in notes)
+    if pitches[-1] - pitches[0] <= HAND_SPAN:
+        # One hand reaches all of it, so everything belongs to whichever hand
+        # plays in this register — the other is resting, and an empty staff is
+        # the honest notation for that.
+        centre = pitches[len(pitches) // 2]
+        return pitches[0] if centre >= 60 else pitches[-1] + 1
+
+    floor = max(2, int(len(pitches) * MIN_HAND_SHARE))
+    distinct = sorted(set(pitches))
+    best = None
+    for lower, upper in zip(distinct, distinct[1:]):
+        size = upper - lower
+        if size < MIN_HAND_GAP:
+            continue
+        below = sum(1 for p in pitches if p <= lower)
+        if below < floor or len(pitches) - below < floor:
+            continue
+        key = (size, -abs(upper - 60))
+        if best is None or key > best[0]:
+            best = (key, upper)
+    if best is None:
+        return default
+    return int(np.clip(best[1], *SPLIT_RANGE))
+
+
+def split_hands(notes: list[GridNote], split_pitch: int = 60,
+                window: float = SPLIT_WINDOW) -> tuple[list[GridNote], list[GridNote]]:
+    """Divide accompaniment notes into right hand / left hand, following the music.
+
+    One split point chosen once for the whole piece only works while the music
+    stays in one register. It does not: a figure comes back an octave up, the
+    left hand walks down into the bass, and the pitch that was the left hand's
+    top note in one section is the right hand's bottom note in the next. A
+    global threshold has to be wrong in one of those places — measured on the
+    `roaming_piano` case, it put a third of the left hand on the wrong staff.
+
+    So the split is placed per window of music instead, from the gap that
+    actually separates the hands there, and then smoothed over time so it does
+    not flicker between neighbouring windows and scatter a held texture across
+    both staves.
     """
     if not notes:
         return [], []
-    pitches = np.array([n.pitch for n in notes])
-    median = int(np.median(pitches))
-    split = int(np.clip(median, 52, 67)) if abs(median - split_pitch) > 7 else split_pitch
-    right = [n for n in notes if n.pitch >= split]
-    left = [n for n in notes if n.pitch < split]
+    ordered = sorted(notes, key=lambda n: n.offset)
+    offsets = np.array([n.offset for n in ordered], dtype=float)
+    pitches = [n.pitch for n in ordered]
+
+    fallback = int(np.clip(int(np.median(pitches)), 52, 67))
+    if abs(fallback - split_pitch) <= 7:
+        fallback = split_pitch
+
+    half = window / 2.0
+    raw = []
+    for offset in offsets:
+        lo = int(np.searchsorted(offsets, offset - half, side="left"))
+        hi = int(np.searchsorted(offsets, offset + half, side="right"))
+        raw.append(_window_split(ordered[lo:hi], fallback))
+
+    # Median-smooth so a single dense chord cannot drag the boundary for its
+    # neighbours; the split should move with the writing, not with each attack.
+    splits = []
+    span = 5
+    for i in range(len(raw)):
+        lo, hi = max(0, i - span), min(len(raw), i + span + 1)
+        splits.append(int(np.median(raw[lo:hi])))
+
+    right = [n for n, split in zip(ordered, splits) if n.pitch >= split]
+    left = [n for n, split in zip(ordered, splits) if n.pitch < split]
     return right, left
 
 

@@ -108,6 +108,48 @@ def full_band() -> Case:
                 {"melody": _truth(mel), "piano": _truth(pno), "bass": _truth(bas)})
 
 
+def roaming_piano() -> Case:
+    """Two hands whose register moves through the piece.
+
+    `solo_piano` keeps the right hand above C4 and the left below it from start
+    to finish, so one split point chosen once for the whole piece gets it right
+    — which is what the pipeline does, and why the case never showed the
+    problem. Real playing moves: the same passage returns an octave up, the
+    left hand walks down into the bass, and a note that belonged to the left
+    hand in bar 4 belongs to the right in bar 20.
+
+    Here the left hand of the middle section (60–69) and the right hand of the
+    last (60–67) occupy the same octave, so **no single threshold can score
+    well on both**. Splitting has to follow the music.
+    """
+    bpm, tonic = 90.0, "C"
+    rh_figure = [(0, 1, 72), (1, 1, 74), (2, 1, 76), (3, 1, 77), (4, 1, 76),
+                 (5, 1, 74), (6, 2, 72), (8, 1, 72), (9, 1, 76), (10, 1, 79),
+                 (11, 1, 77), (12, 4, 76)]
+    lh_figure = [(0, 2, (48, 52, 55)), (2, 2, (48, 52, 55)), (4, 2, (50, 53, 57)),
+                 (6, 2, (50, 53, 57)), (8, 2, (48, 52, 55)), (10, 2, (48, 52, 55)),
+                 (12, 4, (46, 50, 53))]
+
+    rh, lh = [], []
+    for section, shift in enumerate((0, 12, -12)):      # 原位、高八度、低八度
+        bar = section * 16.0
+        for off, dur, pitch in rh_figure:
+            rh.append((bar + off, float(dur), (pitch + shift,)))
+        for off, dur, pitches in lh_figure:
+            lh.append((bar + off, float(dur), tuple(p + shift for p in pitches)))
+
+    ks, ts = key.Key(tonic, "major"), meter.TimeSignature("4/4")
+    mm = tempo.MetronomeMark(number=bpm)
+    sc = stream.Score()
+    rp = _part(rh, "Piano RH", clef.TrebleClef(), instrument.Piano(), ks, ts, mm)
+    lp = _part(lh, "Piano LH", clef.BassClef(), instrument.Piano(), ks, ts, mm)
+    sc.insert(0, rp); sc.insert(0, lp)
+    sc.insert(0, layout.StaffGroup([rp, lp], symbol="brace", barTogether=True))
+    return Case("roaming_piano", sc, bpm, "C major",
+                {"piano": _truth(rh) + _truth(lh),
+                 "piano_rh": _truth(rh), "piano_lh": _truth(lh)})
+
+
 def soft_and_short() -> Case:
     """Quiet notes and sixteenth notes — the two things a draft quietly loses.
 
@@ -199,4 +241,5 @@ PART_STAVES = {
     "bass": ["Bass"],
 }
 
-ALL_CASES = (solo_melody, solo_piano, full_band, soft_and_short)
+ALL_CASES = (solo_melody, solo_piano, full_band, soft_and_short,
+              roaming_piano)
