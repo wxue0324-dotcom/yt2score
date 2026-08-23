@@ -53,7 +53,7 @@ def evaluate(case: C.Case, verbose: bool = True) -> dict | None:
 
     analysis = A.analyze(B._render(case.score, B.CACHE / f"{case.name}__mix.wav"))
     grid = Q.BeatGrid(analysis)
-    notes = T.transcribe_pitched(wav, "accompaniment")
+    notes = T.transcribe_pitched(wav, "accompaniment", tempo=analysis.tempo)
     gridded = Q.quantize_notes(notes, grid)
     right, left = Q.split_hands(gridded)
 

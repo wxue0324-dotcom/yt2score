@@ -56,16 +56,46 @@ PROFILES = {
     "other": dict(onset_threshold=0.55, frame_threshold=0.34,
                   minimum_note_length=70.0, minimum_frequency=55.0,
                   maximum_frequency=3000.0, melodia_trick=False),
-    "accompaniment": dict(onset_threshold=0.55, frame_threshold=0.34,
+    # Grid-searched over the three piano cases in eval/piano_bench.py, on the
+    # separated stem as well as the isolated render. Raising both thresholds
+    # buys precision cheaply here: a piano stem's spurious detections are short
+    # and weakly-onset, while the writing itself is neither.
+    "accompaniment": dict(onset_threshold=0.65, frame_threshold=0.42,
                           minimum_note_length=70.0, minimum_frequency=32.0,
-                          maximum_frequency=3000.0, melodia_trick=False),
+                          maximum_frequency=3000.0, melodia_trick=False,
+                          min_note_semiquavers=0.8),
 }
 
+# Keys that configure this module rather than basic-pitch, and must not be
+# forwarded to it.
+_LOCAL_KEYS = ("min_note_semiquavers",)
 
-def transcribe_pitched(wav_path: Path, profile: str) -> list[Note]:
+
+def _minimum_note_ms(params: dict, tempo: float | None) -> float:
+    """The shortest note worth writing, in ms, for a piece at this tempo.
+
+    A fixed millisecond floor cannot be right for two pieces at once: 150ms
+    filters spurious detections cleanly at 90 BPM and deletes every semiquaver
+    at 150. The grid search picked a large fixed floor because every case it
+    scored was slow; expressed as a fraction of a semiquaver it scores the same
+    on those and stops being a trap for fast music.
+    """
+    share = params.get("min_note_semiquavers")
+    if not share or not tempo or tempo <= 0:
+        return params["minimum_note_length"]
+    semiquaver_ms = (60.0 / tempo / 4.0) * 1000.0
+    return max(30.0, semiquaver_ms * share)
+
+
+def transcribe_pitched(wav_path: Path, profile: str,
+                       tempo: float | None = None) -> list[Note]:
+    """Transcribe one stem. `tempo` lets the note-length floor scale musically."""
     from basic_pitch.inference import predict
 
-    params = PROFILES.get(profile, PROFILES["other"])
+    params = dict(PROFILES.get(profile, PROFILES["other"]))
+    params["minimum_note_length"] = _minimum_note_ms(params, tempo)
+    for key in _LOCAL_KEYS:
+        params.pop(key, None)
     # The CoreML backend chatters tensor shapes to stdout on every chunk.
     with contextlib.redirect_stdout(io.StringIO()):
         _, _, note_events = predict(str(wav_path), **params)

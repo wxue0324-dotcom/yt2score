@@ -16,9 +16,9 @@ from . import jianpu as jianpu_mod
 from . import score as score_mod
 from . import separate as separate_mod
 from . import transcribe as transcribe_mod
-from .quantize import (BeatGrid, clean_part as clean, leading_rest_shift,
-                       quantize_drums, quantize_notes, split_hands,
-                       trim_leading_rest)
+from .quantize import (BeatGrid, clean_part as clean, drop_notes_shared_with,
+                       leading_rest_shift, quantize_drums, quantize_notes,
+                       split_hands, trim_leading_rest)
 
 Progress = Callable[[int, str], None]
 
@@ -99,7 +99,8 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
     accomp = separate_mod.make_accompaniment(stems, workdir)
     if accomp:
         raw_parts["accomp"] = transcribe_mod.calibrate_velocity(
-            transcribe_mod.transcribe_pitched(accomp, "accompaniment"), accomp)
+            transcribe_mod.transcribe_pitched(accomp, "accompaniment",
+                                              tempo=analysis.tempo), accomp)
 
     if "bass" in present:
         progress(78, "採譜：貝斯…")
@@ -120,17 +121,22 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
             quantize_notes(raw_parts["vocal"], grid), fix_octaves=True)
         note_counts["主唱旋律"] = len(parts_data["vocal"])
 
-    if raw_parts.get("accomp"):
-        rh, lh = split_hands(quantize_notes(raw_parts["accomp"], grid))
-        parts_data["piano_rh"] = clean(rh)
-        parts_data["piano_lh"] = clean(lh, min_duration=1.0)
-        note_counts["鋼琴右手"] = len(parts_data["piano_rh"])
-        note_counts["鋼琴左手"] = len(parts_data["piano_lh"])
-
     if raw_parts.get("bass"):
         parts_data["bass"] = clean(
             quantize_notes(raw_parts["bass"], grid), fix_octaves=True)
         note_counts["貝斯"] = len(parts_data["bass"])
+
+    if raw_parts.get("accomp"):
+        # Quantised after the bass so the doubled line can be removed: the
+        # accompaniment mix includes the bass stem, and whatever the bass staff
+        # already prints does not belong on the piano as well.
+        accomp_grid = drop_notes_shared_with(
+            quantize_notes(raw_parts["accomp"], grid), parts_data.get("bass", []))
+        rh, lh = split_hands(accomp_grid)
+        parts_data["piano_rh"] = clean(rh)
+        parts_data["piano_lh"] = clean(lh, min_duration=1.0)
+        note_counts["鋼琴右手"] = len(parts_data["piano_rh"])
+        note_counts["鋼琴左手"] = len(parts_data["piano_lh"])
 
     if drum_hits:
         parts_data["drums"] = quantize_drums(drum_hits, grid)

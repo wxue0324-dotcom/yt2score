@@ -134,7 +134,7 @@ def stage_a(case: C.Case, workdir: Path, verbose: bool) -> dict:
             continue
         wav = _render(isolated, workdir / f"{case.name}__{part}.wav")
         profile, monophonic = PROFILES[part]
-        notes = T.transcribe_pitched(wav, profile)
+        notes = T.transcribe_pitched(wav, profile, tempo=analysis.tempo)
         if monophonic:
             notes = T.make_monophonic(notes)
         raw_by_part[part] = notes
@@ -174,7 +174,8 @@ def stage_b(case: C.Case, workdir: Path, verbose: bool) -> dict:
         if part not in PROFILES or STEM_FOR[part] not in stems:
             continue
         profile, monophonic = PROFILES[part]
-        notes = T.transcribe_pitched(stems[STEM_FOR[part]], profile)
+        notes = T.transcribe_pitched(stems[STEM_FOR[part]], profile,
+                                     tempo=analysis.tempo)
         if monophonic:
             notes = T.make_monophonic(notes)
         raw_by_part[part] = notes

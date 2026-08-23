@@ -1,0 +1,52 @@
+{
+  "label": "nodup",
+  "mean_f1": 0.855,
+  "mean_hand": NaN,
+  "cases": [
+    {
+      "case": "solo_piano",
+      "n_true": 33,
+      "n_got": 29,
+      "p": 1.0,
+      "r": 0.879,
+      "f1": 0.935,
+      "bands": {
+        "低音 <52": 1.0,
+        "中音 52-71": 0.81,
+        "高音 ≥72": 1.0
+      },
+      "hand_accuracy": null,
+      "seconds": 12.9
+    },
+    {
+      "case": "full_band",
+      "n_true": 21,
+      "n_got": 25,
+      "p": 0.68,
+      "r": 0.81,
+      "f1": 0.739,
+      "bands": {
+        "低音 <52": 1.0,
+        "中音 52-71": 0.8,
+        "高音 ≥72": null
+      },
+      "hand_accuracy": null,
+      "seconds": 8.3
+    },
+    {
+      "case": "roaming_piano",
+      "n_true": 99,
+      "n_got": 92,
+      "p": 0.924,
+      "r": 0.859,
+      "f1": 0.89,
+      "bands": {
+        "低音 <52": 0.759,
+        "中音 52-71": 0.978,
+        "高音 ≥72": 0.75
+      },
+      "hand_accuracy": null,
+      "seconds": 12.7
+    }
+  ]
+}

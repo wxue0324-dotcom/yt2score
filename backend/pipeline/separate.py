@@ -60,7 +60,15 @@ def separate(wav_path: Path, workdir: Path, progress=None) -> dict[str, Path]:
 
 
 def make_accompaniment(stems: dict[str, Path], workdir: Path) -> Path | None:
-    """Mix bass + other into one track — the source for the piano grand staff."""
+    """Mix bass + other into one track — the source for the piano grand staff.
+
+    The bass stem stays in even when the bass is also getting its own staff.
+    Dropping it is the obvious way to stop the line being notated twice and it
+    costs too much: on solo piano this stem is not a bass guitar at all but the
+    left hand, which Demucs routes there by register, and on a band recording
+    it still carries the bottom of the piano. Removing the duplicates after
+    transcription keeps both — see `drop_notes_shared_with` in quantize.
+    """
     parts = [stems[s] for s in ("bass", "other") if s in stems]
     if not parts:
         return None
