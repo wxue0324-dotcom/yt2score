@@ -246,6 +246,74 @@ def calibrate_velocity(notes: list[Note], wav_path: Path,
     return notes
 
 
+
+# A dedicated piano model, used when the material really is a piano. Kept as a
+# soft dependency: it needs a 164MB checkpoint, and everything still works
+# without it.
+_PIANO_MODEL = None
+_PIANO_SR = 16000
+
+
+def piano_model_available() -> bool:
+    try:
+        import piano_transcription_inference  # noqa: F401
+    except Exception:
+        return False
+    from pathlib import Path as _P
+    ckpt = _P.home() / "piano_transcription_inference_data" / \
+        "note_F1=0.9677_pedal_F1=0.9186.pth"
+    return ckpt.exists() and ckpt.stat().st_size > 1.6e8
+
+
+def transcribe_piano(wav_path: Path) -> list[Note] | None:
+    """Transcribe with a piano-specific model, or None if it is not installed.
+
+    basic-pitch is trained across instruments and has to be right about what it
+    is hearing before it can be right about the notes; this one assumes a piano
+    and spends all of its capacity on the notes. On the benchmark's
+    register-roaming piano the difference is large — note F1 0.910 to 0.960,
+    with recall in the outer registers going 0.76 to 0.97 in the bass and 0.79
+    to 0.96 in the treble.
+
+    That assumption is also its limit, which is why the caller checks the
+    material first: pointed at a band's accompaniment stem it writes the guitars
+    and synths out as piano too, and precision falls from 0.88 to 0.72. It is
+    also 10-40x slower, so it earns its place only where it wins.
+    """
+    global _PIANO_MODEL
+    if not piano_model_available():
+        return None
+    from piano_transcription_inference import PianoTranscription
+
+    if _PIANO_MODEL is None:
+        device = "cpu"
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                device = "mps"
+            elif torch.cuda.is_available():
+                device = "cuda"
+        except Exception:
+            pass
+        with contextlib.redirect_stdout(io.StringIO()):
+            _PIANO_MODEL = PianoTranscription(device=device)
+
+    # Its own loader calls a librosa API that no longer exists, so read the
+    # audio here instead.
+    audio, _ = librosa.load(str(wav_path), sr=_PIANO_SR, mono=True)
+    with contextlib.redirect_stdout(io.StringIO()):
+        result = _PIANO_MODEL.transcribe(audio, None)
+
+    notes = [
+        Note(start=float(e["onset_time"]), end=float(e["offset_time"]),
+             pitch=int(e["midi_note"]),
+             velocity=int(np.clip(e.get("velocity", 80), 1, 127)))
+        for e in result.get("est_note_events", [])
+    ]
+    notes.sort(key=lambda n: (n.start, n.pitch))
+    return notes
+
+
 def transcribe_drums(wav_path: Path) -> list[DrumHit]:
     """Detect hits and sort them into kick / snare / hihat by band energy."""
     y, sr = librosa.load(str(wav_path), sr=22050, mono=True)

@@ -14,3 +14,7 @@ soundfile==0.12.1
 numpy<2
 scipy>=1.11
 setuptools>=70,<82
+
+# 選用：獨奏鋼琴的專用採譜模型。裝了會自動啟用，沒裝就沿用 basic-pitch。
+# 首次使用需要另外下載 164MB 的模型檔，見 README。
+piano_transcription_inference

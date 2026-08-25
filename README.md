@@ -187,6 +187,24 @@ cd eval
 | 歌曲長度上限（預設 12 分鐘） | `backend/pipeline/download.py` 的 `max_duration` |
 | 速度先驗（證據相當時偏向的拍速） | `backend/pipeline/analyze.py` 的 `_TEMPO_CENTRE` |
 
+## 獨奏鋼琴的專用模型（選用）
+
+獨奏鋼琴曲可以改用鋼琴專用的採譜模型，音符準確度明顯較高
+（測試集上 F1 0.908 → 0.939，低音與高音的召回率提升最多）。
+裝了就會自動啟用，而且**只在判定為獨奏鋼琴時使用** —— 樂團編制仍走
+basic-pitch，因為鋼琴模型會把吉他、合成器也當成鋼琴寫下來。
+
+模型檔要手動抓一次（164MB，函式庫內建的下載用 `wget`，macOS 沒有）：
+
+```bash
+mkdir -p ~/piano_transcription_inference_data
+curl -L -o "$HOME/piano_transcription_inference_data/note_F1=0.9677_pedal_F1=0.9186.pth" \
+  "https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1"
+```
+
+沒裝或沒抓模型檔都不影響，程式會沿用 basic-pitch。這一步比 basic-pitch 慢
+10–40 倍，所以只在它真的比較準的地方用。
+
 ## 環境需求
 
 macOS（已在 M1 測試）、Python 3.11、ffmpeg、MuseScore 4、deno（yt-dlp 解 YouTube 簽章用，缺了會大量 403）。

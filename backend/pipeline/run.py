@@ -98,9 +98,20 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
     progress(70, "採譜：伴奏（鋼琴大譜表）…")
     accomp = separate_mod.make_accompaniment(stems, workdir)
     if accomp:
-        raw_parts["accomp"] = transcribe_mod.calibrate_velocity(
-            transcribe_mod.transcribe_pitched(accomp, "accompaniment",
-                                              tempo=analysis.tempo), accomp)
+        # A piano-specific model is far better on the notes but assumes the
+        # audio is a piano, so it is used only where that holds: no drums and
+        # no voice means the accompaniment stem really is the instrument, not a
+        # band's worth of guitars for it to mistake for one.
+        piano_only = not ({"drums", "vocals"} & present)
+        accomp_notes = None
+        if piano_only:
+            accomp_notes = transcribe_mod.transcribe_piano(accomp)
+            if accomp_notes is not None:
+                progress(72, "採譜：鋼琴（專用模型）…")
+        if accomp_notes is None:
+            accomp_notes = transcribe_mod.transcribe_pitched(
+                accomp, "accompaniment", tempo=analysis.tempo)
+        raw_parts["accomp"] = transcribe_mod.calibrate_velocity(accomp_notes, accomp)
 
     if "bass" in present:
         progress(78, "採譜：貝斯…")
