@@ -18,7 +18,7 @@ from . import separate as separate_mod
 from . import transcribe as transcribe_mod
 from .quantize import (BeatGrid, clean_part as clean, drop_notes_shared_with,
                        leading_rest_shift, quantize_drums, quantize_notes,
-                       split_hands, trim_leading_rest)
+                       split_hands, subdivision_plan, trim_leading_rest)
 
 Progress = Callable[[int, str], None]
 
@@ -126,15 +126,30 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
     grid = BeatGrid(analysis)
     parts_data: dict = {}
     note_counts: dict = {}
+    # Which grid each part was quantised onto, section by section, so the
+    # engraver offers it note values it can actually land on — a passage in
+    # triplets needs thirds available, and most pieces only do it in places.
+    # Decided from each part's own audio rather than its transcribed notes,
+    # whose timing jitter is wide enough to hide the distinction entirely.
+    subdivisions: dict = {}
+
+    def _plan(key: str, source: Path) -> list:
+        plan = subdivision_plan(analyze_mod.onset_times(source), grid)
+        subdivisions[key] = plan
+        return plan
 
     if raw_parts.get("vocal"):
         parts_data["vocal"] = clean(
-            quantize_notes(raw_parts["vocal"], grid), fix_octaves=True)
+            quantize_notes(raw_parts["vocal"], grid,
+                           _plan("vocal", stems["vocals"])),
+            fix_octaves=True)
         note_counts["主唱旋律"] = len(parts_data["vocal"])
 
     if raw_parts.get("bass"):
         parts_data["bass"] = clean(
-            quantize_notes(raw_parts["bass"], grid), fix_octaves=True)
+            quantize_notes(raw_parts["bass"], grid,
+                           _plan("bass", stems["bass"])),
+            fix_octaves=True)
         note_counts["貝斯"] = len(parts_data["bass"])
 
     if raw_parts.get("accomp"):
@@ -142,7 +157,8 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
         # accompaniment mix includes the bass stem, and whatever the bass staff
         # already prints does not belong on the piano as well.
         accomp_grid = drop_notes_shared_with(
-            quantize_notes(raw_parts["accomp"], grid), parts_data.get("bass", []))
+            quantize_notes(raw_parts["accomp"], grid, _plan("piano", accomp)),
+            parts_data.get("bass", []))
         rh, lh = split_hands(accomp_grid)
         parts_data["piano_rh"] = clean(rh)
         parts_data["piano_lh"] = clean(lh, min_duration=1.0)
@@ -177,7 +193,13 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
                         if name != "drums" and notes), default=lead_shift)
     score_anchor = grid.to_seconds(max(lead_shift, first_offset))
     parts_data = trim_leading_rest(parts_data, beats_per_bar=analysis.beats_per_bar)
-    sc = score_mod.build_score(parts_data, analysis, track.title, track.uploader)
+    # The trim moved every note, so the section boundaries have to move with
+    # them — otherwise the engraver offers each note the note values of
+    # whichever section used to sit at that offset.
+    subdivisions = {key: [(max(0.0, start - lead_shift), sub) for start, sub in plan]
+                    for key, plan in subdivisions.items()}
+    sc = score_mod.build_score(parts_data, analysis, track.title, track.uploader,
+                               subdivisions=subdivisions)
     files_abs = score_mod.export(sc, outdir, "score")
     if "pdf" not in files_abs:
         warnings.append("MuseScore 沒有產生 PDF，但 MusicXML 可以正常開啟。")

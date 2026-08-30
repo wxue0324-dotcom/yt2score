@@ -1,6 +1,8 @@
 """Snap raw seconds-based notes onto the musical grid found by analyze.py."""
 from __future__ import annotations
 
+import bisect
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,6 +17,20 @@ from .transcribe import DrumHit, Note
 # `choose_subdivision` rather than fixed here.
 SUBDIVISION = 2
 FINE_SUBDIVISION = 4
+# Thirds of a beat. Without these no triplet can be written down at all: every
+# one of them lands a third of a beat from the nearest slot on any grid built
+# by halving, which is the largest error a grid can make, and the notes that
+# collide after being pushed there are folded together by `_merge_duplicates`.
+# Measured on a solo piano arrangement whose middle section is in triplets, the
+# onsets sat 44 ms from the 8th-note grid and 5 ms from the 6-per-beat one.
+TRIPLET_SUBDIVISION = 3
+# Both halves and thirds. Needed because a passage rarely switches over
+# cleanly — it carries ordinary quavers alongside the triplets, and a pure
+# triplet grid cannot place those either.
+MIXED_SUBDIVISION = 6
+# Ordered coarse to fine; `choose_subdivision` walks it in this order.
+_SUBDIVISIONS = (SUBDIVISION, TRIPLET_SUBDIVISION, FINE_SUBDIVISION,
+                 MIXED_SUBDIVISION)
 MIN_SLOTS = 1
 
 # What share of the coarse grid's residual the finer grid has to remove before
@@ -53,8 +69,15 @@ class BeatGrid:
         beats = np.asarray(analysis.beats, dtype=float)
         # Extend the grid backwards to 0 and forwards a little so notes at the
         # very start or end of the track still land somewhere sensible.
-        spb = analysis.seconds_per_beat
-        if len(beats) < 2:
+        # Extrapolate at the spacing the grid itself runs at, not at
+        # `analysis.seconds_per_beat`: the header tempo is refined against the
+        # onsets afterwards and is deliberately a fraction of a percent away
+        # from the tracked spacing, so using it here would put a small seam
+        # between the extension and the beats it is extending.
+        if len(beats) >= 2:
+            spb = float(np.median(np.diff(beats)))
+        else:
+            spb = analysis.seconds_per_beat
             beats = np.arange(0.0, 600.0, spb)
         lead = np.arange(beats[0] - spb, -spb, -spb)[::-1]
         tail = beats[-1] + np.arange(spb, 60.0, spb)
@@ -82,7 +105,7 @@ class BeatGrid:
 
 def choose_subdivision(notes: list[Note], grid: BeatGrid,
                        margin: float = FINE_MARGIN) -> int:
-    """Pick the 8th- or 16th-note grid by asking which one the onsets already fit.
+    """Pick the grid the onsets already fit, from 8ths, triplets, 16ths or sixths.
 
     Snapping to a grid coarser than the music moves every off-grid note onto a
     neighbour, where `_merge_duplicates` and the engraver fold it into whatever
@@ -99,32 +122,230 @@ def choose_subdivision(notes: list[Note], grid: BeatGrid,
 
     The comparison is proportional so that it survives separation, which
     roughly doubles the residual without changing what was written.
+
+    This picks one grid for everything it is given. Use `subdivision_plan` for
+    a part whose writing changes partway through — that is the common case on
+    anything longer than a phrase, and it is what the pipeline calls.
     """
     if len(notes) < 8:
         return SUBDIVISION
     positions = np.array([grid.to_beats(n.start) for n in notes], dtype=float)
+    return _pick_subdivision(positions, margin)
+
+
+# A finer grid has to come within this of the best candidate's residual before
+# it is preferred for being coarser.
+_SUBDIVISION_TOL = 0.10
+
+
+def _pick_subdivision(positions: np.ndarray, margin: float) -> int:
+    """Which grid these beat positions sit on, or 8ths if none fits better."""
+    if len(positions) < 8:
+        return SUBDIVISION
 
     def residual(subdivision: int) -> float:
         scaled = positions * subdivision
         return float(np.mean(np.abs(scaled - np.round(scaled)) / subdivision))
 
-    coarse = residual(SUBDIVISION)
-    if coarse <= 1e-9:
+    scores = {s: residual(s) for s in _SUBDIVISIONS}
+    base = scores[SUBDIVISION]
+    if base <= 1e-9:
         return SUBDIVISION
-    improvement = (coarse - residual(FINE_SUBDIVISION)) / coarse
-    return FINE_SUBDIVISION if improvement > margin else SUBDIVISION
+    finest = min(scores, key=scores.get)
+    if (base - scores[finest]) / base <= margin:
+        return SUBDIVISION
+    # Then fall back to the coarsest grid that is essentially as good — but
+    # only among grids the winner actually contains, so that a near-tie is
+    # broken toward the simpler notation without changing what can be written.
+    # 16ths and sixths are not interchangeable that way: neither contains the
+    # other, and only sixths can place a triplet at all. They still score
+    # within a few percent of each other on a passage of sixths measured
+    # against the tracked grid (0.0300 against 0.0311 here), because the grid's
+    # own error floors both — so a plain "prefer the coarser" comparison
+    # between them hands triplet material to a grid that cannot hold it, and
+    # every third note lands a twelfth of a beat away and merges with its
+    # neighbour. Measured with that grid error removed, the same passage sits
+    # 2.2 ms from sixths and 14.1 ms from 16ths.
+    for candidate in _SUBDIVISIONS:
+        if finest % candidate == 0 and \
+                scores[candidate] <= scores[finest] * (1 + _SUBDIVISION_TOL):
+            return candidate
+    return finest
+
+
+# How much music one subdivision decision covers, in quarter-lengths. Sized
+# like SPLIT_WINDOW and for the same reason: long enough that a handful of
+# stray onsets cannot flip a section, short enough to follow a piece that
+# changes character partway through.
+SUBDIVISION_WINDOW = 12.0
+
+
+def subdivision_plan(onsets: np.ndarray, grid: BeatGrid,
+                     margin: float = FINE_MARGIN,
+                     window: float = SUBDIVISION_WINDOW) -> list[tuple[float, int]]:
+    """Per-section subdivisions for a part, decided from raw audio onsets.
+
+    One subdivision for a whole part is the same mistake `split_hands` already
+    documents for one split point: it has to be wrong wherever the music
+    changes. Measured on the arrangement that prompted this, the first 40
+    seconds and the middle 40 sit exactly on quavers while three other stretches
+    sit on sixths — and averaged over the part the sixths improve on quavers by
+    42%, under the margin, so a single decision writes the whole piece in
+    quavers and mangles every triplet in it.
+
+    Decided from audio onsets rather than transcribed notes because the model's
+    own timing jitter is comparable to the slot spacing being tested; see
+    `analyze.onset_times`.
+
+    Returns (start in quarter-lengths, subdivision) pairs, ascending.
+    """
+    if len(onsets) == 0:
+        return [(0.0, SUBDIVISION)]
+    positions = np.array([grid.to_beats(float(t)) for t in onsets], dtype=float)
+    positions = positions[np.isfinite(positions)]
+    if len(positions) < 8:
+        return [(0.0, SUBDIVISION)]
+
+    buckets = np.floor(positions / window).astype(int)
+    first, last = int(buckets.min()), int(buckets.max())
+    indices = list(range(first, last + 1))
+    grouped = {i: positions[buckets == i] for i in indices}
+
+    picks: dict[int, int] = {}
+    previous = SUBDIVISION
+    for i in indices:
+        # A sparse window has no opinion of its own; carrying the previous
+        # decision forward beats resetting a triplet section to quavers because
+        # one bar of it happened to be quiet.
+        picks[i] = (_pick_subdivision(grouped[i], margin)
+                    if len(grouped[i]) >= 8 else previous)
+        previous = picks[i]
+
+    # A single duple window between two divided ones is almost always the same
+    # passage, momentarily thinner. Bridging it first stops one quiet bar
+    # splitting a section into two that then disagree with each other.
+    for i in indices[1:-1]:
+        if picks[i] == SUBDIVISION and SUBDIVISION not in (picks[i - 1], picks[i + 1]):
+            picks[i] = picks[i - 1]
+
+    # Then settle each run of divided windows on one grid, pooling its onsets.
+    # Window by window the same passage comes out 16ths here and sixths there —
+    # they score within a few percent of each other on material that mixes
+    # halves and thirds — and alternating between them mid-phrase is both wrong
+    # and unreadable. Pooled, the run has enough evidence to answer once.
+    plan: list[tuple[float, int]] = []
+    i = first
+    while i <= last:
+        if picks[i] == SUBDIVISION:
+            i += 1
+            continue
+        start = i
+        while i <= last and picks[i] != SUBDIVISION:
+            i += 1
+        pooled = np.concatenate([grouped[j] for j in range(start, i)])
+        settled = _pick_subdivision(pooled, margin)
+        if settled != SUBDIVISION:
+            plan.extend(_beat_divisions(pooled, start * window, i * window,
+                                        settled))
+            if i <= last:
+                plan.append((i * window, SUBDIVISION))
+    plan.sort()
+    if not plan or plan[0][0] > 0:
+        plan.insert(0, (0.0, SUBDIVISION))
+    return plan
+
+
+# How far an onset may sit from a candidate division before that division is
+# judged not to describe the beat. A little wider than transcription jitter.
+_BEAT_FIT = 0.12
+
+
+def _beat_divisions(positions: np.ndarray, start: float, end: float,
+                    settled: int) -> list[tuple[float, int]]:
+    """Split a divided run into one division per beat.
+
+    A section written in sixths does not divide every beat into six. Some of
+    its beats are plain quavers, some are triplets, and notation follows the
+    beat: nobody writes a quaver and a triplet quaver inside the same beat, and
+    the formats cannot express it either. Left mixed, music21 brackets the bar
+    by guesswork and emits tuplets like 24:17 with unbalanced start/stop tags —
+    MusicXML that reads as valid until MuseScore crashes rendering its audio.
+
+    So each beat is given the coarsest division its own onsets actually fit,
+    which keeps every beat internally uniform while still letting the section
+    place notes on sixths where it needs them.
+    """
+    # Only divisions the settled grid contains, and never sixths themselves: a
+    # beat divided into six is the one case that cannot be written down beside
+    # anything else, because half of its slots read as quavers and the other
+    # half as triplet quavers, and no format has a way to say both at once.
+    # Sixths stay in `_pick_subdivision`, where they are the evidence that a
+    # section is divided at all; here that section is written a beat at a time
+    # in halves or in thirds, which is how the music is played and read.
+    candidates = [d for d in (SUBDIVISION, TRIPLET_SUBDIVISION, FINE_SUBDIVISION)
+                  if settled % d == 0]
+    def deviation(offsets: np.ndarray, candidate: int) -> float:
+        scaled = offsets * candidate
+        return float(np.max(np.abs(scaled - np.round(scaled))) / candidate)
+
+    out: list[tuple[float, int]] = []
+    previous = None
+    beat = float(np.floor(start))
+    while beat < end:
+        inside = positions[(positions >= beat) & (positions < beat + 1.0)]
+        if len(inside):
+            offsets = inside - beat
+            # The coarsest division that actually describes this beat, and
+            # failing that the one that comes closest. Never `settled` itself:
+            # every beat has to end up on a grid the engraver can write, so a
+            # beat that fits none of them is approximated rather than left on a
+            # division that would poison the bar around it.
+            fits = [c for c in candidates if deviation(offsets, c) <= _BEAT_FIT]
+            chosen = fits[0] if fits else min(candidates,
+                                              key=lambda c: deviation(offsets, c))
+        else:
+            chosen = previous if previous is not None else candidates[0]
+        if chosen != previous:
+            out.append((beat, chosen))
+        previous = chosen
+        beat += 1.0
+    return out
+
+
+def subdivision_at(plan: list[tuple[float, int]], offset: float,
+                   default: int = SUBDIVISION) -> int:
+    """The subdivision in force at a given quarter-length offset.
+
+    Bisected rather than scanned: the plan carries an entry per beat wherever
+    the writing changes, and this is called once per note.
+    """
+    if not plan:
+        return default
+    index = bisect.bisect_right([start for start, _ in plan], offset + 1e-9) - 1
+    return plan[max(0, index)][1]
 
 
 def quantize_notes(notes: list[Note], grid: BeatGrid,
-                   subdivision: int | None = None) -> list[GridNote]:
-    """Snap notes onto the grid. `subdivision=None` picks one per part."""
+                   subdivision: int | list[tuple[float, int]] | None = None,
+                   ) -> list[GridNote]:
+    """Snap notes onto the grid.
+
+    `subdivision` takes one grid for the whole part, a plan from
+    `subdivision_plan` to vary it by section, or None to choose one per part.
+    """
     if subdivision is None:
         subdivision = choose_subdivision(notes, grid)
+    plan = subdivision.copy() if isinstance(subdivision, list) else None
+
     out: list[GridNote] = []
-    step = 1.0 / subdivision
     for n in notes:
-        start = grid.snap(n.start, subdivision)
-        end = grid.snap(n.end, subdivision)
+        # Locate the note before snapping it, so the section it belongs to is
+        # decided by where it was played rather than by where it ends up.
+        local = (subdivision_at(plan, grid.to_beats(n.start)) if plan
+                 else subdivision)
+        step = 1.0 / local
+        start = grid.snap(n.start, local)
+        end = grid.snap(n.end, local)
         if end - start < step * MIN_SLOTS:
             end = start + step * MIN_SLOTS
         out.append(GridNote(offset=max(0.0, start), duration=end - start,
