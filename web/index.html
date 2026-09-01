@@ -5,102 +5,206 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>yt2score · YouTube 自動採譜</title>
 <style>
+  /* Palette. Cool neutrals with a single fresh accent, and warnings/errors on
+     their own tints — previously both borrowed the accent tint, which is what
+     flattened the page into one colour. */
   :root {
-    --bg: #fafaf9; --panel: #fff; --ink: #1c1917; --muted: #78716c;
-    --line: #e7e5e4; --accent: #b45309; --accent-soft: #fef3c7;
-    --ok: #15803d; --warn: #b45309; --err: #b91c1c;
+    --bg: #f5f7fa; --panel: #fff; --ink: #101828; --muted: #667085;
+    --line: #e6eaf0; --line-soft: #eef1f6;
+    --accent: #0d9488; --accent-ink: #0f766e; --accent-soft: #edfbf7;
+    --on-accent: #fff;
+    --ok: #15803d;
+    --warn: #b45309; --warn-soft: #fffaeb;
+    --err: #b42318; --err-soft: #fef3f2;
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 12px 28px -16px rgba(16,24,40,.18);
+    --radius: 14px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #1c1917; --panel: #292524; --ink: #f5f5f4; --muted: #a8a29e;
-      --line: #44403c; --accent: #fbbf24; --accent-soft: #422006;
-      --ok: #4ade80; --warn: #fbbf24; --err: #f87171;
+      --bg: #0e1116; --panel: #161a21; --ink: #e7eaee; --muted: #98a2b3;
+      --line: #252b35; --line-soft: #1d222a;
+      --accent: #2dd4bf; --accent-ink: #5eead4; --accent-soft: #0e2e2a;
+      --on-accent: #04231f;
+      --ok: #4ade80;
+      --warn: #fbbf24; --warn-soft: #2a2008;
+      --err: #f87171; --err-soft: #2c1517;
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 14px 32px -18px rgba(0,0,0,.75);
     }
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 15px/1.6 -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+    margin: 0; color: var(--ink);
+    background:
+      radial-gradient(900px 380px at 50% -220px, var(--accent-soft), transparent 70%),
+      var(--bg);
+    font: 15px/1.65 -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 940px; margin: 0 auto; padding: 40px 20px 80px; }
-  header h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
-  header p { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 56px 22px 96px; }
+
+  header { margin-bottom: 32px; }
+  header h1 {
+    font-size: 30px; margin: 0 0 8px; letter-spacing: -0.025em; font-weight: 650;
+  }
+  header h1::after {
+    content: ""; display: block; width: 34px; height: 3px; border-radius: 99px;
+    background: var(--accent); margin-top: 12px;
+  }
+  header p { color: var(--muted); margin: 0; font-size: 14.5px; max-width: 60ch; }
 
   .card {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 20px; margin-bottom: 18px;
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+    box-shadow: var(--shadow);
   }
+
   form { display: flex; gap: 10px; flex-wrap: wrap; }
   input[type=url] {
-    flex: 1 1 380px; padding: 11px 14px; font-size: 15px;
-    border: 1px solid var(--line); border-radius: 8px;
+    flex: 1 1 380px; padding: 12px 15px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--ink);
+    transition: border-color .15s, box-shadow .15s;
   }
-  input[type=url]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input[type=url]::placeholder { color: var(--muted); opacity: .7; }
+  input[type=url]:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
   button {
-    padding: 11px 22px; font-size: 15px; font-weight: 600; cursor: pointer;
-    border: none; border-radius: 8px; background: var(--accent); color: var(--bg);
+    padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
+    border: none; border-radius: 10px;
+    background: var(--accent); color: var(--on-accent);
+    transition: filter .15s, transform .06s;
   }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  .opts { margin-top: 12px; font-size: 14px; color: var(--muted); }
-  .opts label { cursor: pointer; }
+  button:hover:not(:disabled) { filter: brightness(1.07); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .opts { margin-top: 14px; font-size: 14px; color: var(--muted); }
+  .opts label { cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+  .opts input { accent-color: var(--accent); }
 
-  .bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
-  .bar > div {
-    height: 100%; width: 0; background: var(--accent);
-    transition: width .4s ease; border-radius: 99px;
+  .bar {
+    height: 8px; background: var(--line-soft); border-radius: 99px; overflow: hidden;
   }
+  .bar > div {
+    height: 100%; width: 0; border-radius: 99px;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #fff));
+    background-size: 200% 100%;
+    transition: width .4s ease;
+    animation: flow 2.2s linear infinite;
+  }
+  @keyframes flow { to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .bar > div { animation: none; } }
+
   .log {
-    margin-top: 14px; max-height: 220px; overflow-y: auto; font-size: 13px;
+    margin-top: 16px; max-height: 220px; overflow-y: auto; font-size: 12.5px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
   }
-  .log div { padding: 2px 0; }
-  .log div:last-child { color: var(--ink); }
+  .log div { padding: 2.5px 0; }
+  .log div:last-child { color: var(--ink); font-weight: 500; }
 
-  .meta { display: flex; flex-wrap: wrap; gap: 8px 26px; margin: 4px 0 18px; }
-  .meta span { font-size: 14px; }
-  .meta b { color: var(--accent); font-variant-numeric: tabular-nums; }
-
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
-  .tabs button {
-    background: none; color: var(--muted); border-radius: 0; font-weight: 500;
-    padding: 9px 16px; border-bottom: 2px solid transparent;
+  /* Facts read as chips, so tempo and key are scannable rather than a run-on line. */
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 20px; }
+  .meta span {
+    font-size: 13px; color: var(--muted);
+    background: var(--line-soft); border: 1px solid var(--line);
+    padding: 5px 11px; border-radius: 99px;
   }
-  .tabs button[aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
+  .meta b {
+    color: var(--accent-ink); font-variant-numeric: tabular-nums;
+    font-weight: 650; margin-left: 3px;
+  }
 
-  .pages { max-height: 78vh; overflow-y: auto; border-radius: 6px; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .tabs button {
+    background: none; color: var(--muted); border-radius: 8px 8px 0 0; font-weight: 550;
+    padding: 10px 18px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tabs button:hover { color: var(--ink); background: var(--line-soft); }
+  .tabs button[aria-selected=true] {
+    color: var(--accent-ink); border-bottom-color: var(--accent); background: none;
+  }
+
+  /* Deliberately not scroll-behavior: smooth. Some engines treat that as
+     permission to animate and then never run the animation, which leaves the
+     score frozen while the music carries on. A jump per system is what a page
+     turn looks like anyway. */
+  .pages { max-height: 78vh; overflow-y: auto; border-radius: 10px; }
   .pages img, .pages object {
     width: 100%; background: #fff; border: 1px solid var(--line);
-    border-radius: 6px; margin-bottom: 12px; display: block;
+    border-radius: 10px; display: block;
   }
-  .dl { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-  .dl a {
-    padding: 8px 14px; font-size: 14px; text-decoration: none;
-    border: 1px solid var(--line); border-radius: 7px; color: var(--ink);
+  .page { position: relative; margin-bottom: 14px; }
+  /* The cursor is positioned in percentages of the page box, so it stays put
+     when the image is rescaled by the viewport. */
+  .playhead {
+    position: absolute; width: 2px; border-radius: 2px;
+    background: var(--accent); pointer-events: none;
+    opacity: 0; transition: opacity .18s;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
   }
-  .dl a:hover { border-color: var(--accent); color: var(--accent); }
+  .playhead.on { opacity: 1; }
+  .playhead::before {
+    content: ""; position: absolute; left: 50%; top: -5px;
+    width: 8px; height: 8px; margin-left: -4px; border-radius: 50%;
+    background: var(--accent);
+  }
 
-  .note { font-size: 13px; padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; }
-  .note.warn { background: var(--accent-soft); color: var(--warn); }
-  .note.err { background: var(--accent-soft); color: var(--err); }
+  .dl { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+  .dl a {
+    padding: 9px 15px; font-size: 13.5px; font-weight: 500; text-decoration: none;
+    border: 1px solid var(--line); border-radius: 9px; color: var(--ink);
+    background: var(--panel);
+    transition: border-color .15s, color .15s, transform .1s, box-shadow .15s;
+  }
+  .dl a:hover {
+    border-color: var(--accent); color: var(--accent-ink);
+    transform: translateY(-1px); box-shadow: var(--shadow);
+  }
+
+  .note {
+    font-size: 13px; padding: 11px 14px; border-radius: 10px; margin-bottom: 10px;
+    border: 1px solid transparent;
+  }
+  .note.warn {
+    background: var(--warn-soft); color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 24%, transparent);
+  }
+  .note.err {
+    background: var(--err-soft); color: var(--err);
+    border-color: color-mix(in srgb, var(--err) 24%, transparent);
+  }
+
   .stems div { font-size: 13px; color: var(--muted); }
-  .stems audio { width: 100%; margin-top: 4px; }
-  .stems > div { margin-bottom: 10px; }
+  .stems audio { width: 100%; margin-top: 5px; }
+  .stems > div { margin-bottom: 14px; }
 
   .mainplayer {
-    margin: 18px 0 4px; padding: 14px 16px;
-    background: var(--accent-soft); border-radius: 10px;
+    margin: 22px 0 6px; padding: 16px 18px;
+    background: var(--accent-soft); border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   }
-  .mainplayer .lbl { font-size: 13.5px; font-weight: 600; color: var(--accent); }
-  .mainplayer .hint { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
-  .mainplayer audio { width: 100%; margin-top: 8px; }
+  .mainplayer .lbl { font-size: 13.5px; font-weight: 650; color: var(--accent-ink); }
+  .mainplayer .hint { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .mainplayer audio { width: 100%; margin-top: 10px; }
 
-  .compare { display: grid; gap: 22px; grid-template-columns: 1fr 1fr; margin-top: 22px; }
+  .compare { display: grid; gap: 26px; grid-template-columns: 1fr 1fr; margin-top: 28px; }
   @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
-  .compare h3 { font-size: 14px; margin: 0 0 4px; }
-  .compare .sub { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+  h3 {
+    font-size: 14px; margin: 0 0 5px; font-weight: 650;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h3::before {
+    content: ""; width: 3px; height: 14px; border-radius: 99px;
+    background: var(--accent); flex: none;
+  }
+  .sub { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+
   .hidden { display: none; }
-  footer { color: var(--muted); font-size: 12.5px; margin-top: 30px; line-height: 1.7; }
+  footer {
+    color: var(--muted); font-size: 12.5px; margin-top: 40px; line-height: 1.8;
+    padding-top: 22px; border-top: 1px solid var(--line);
+  }
 </style>
 </head>
 <body>
@@ -298,10 +402,23 @@ function render(r) {
     $("mainPlayer").classList.add("hidden");
   }
 
+  // Load the bar map before wiring players up, so a cursor never appears
+  // against a score it does not describe.
+  scoreMap = null; currentAudio = null; lastBar = -1;
+  if (r.files.score_map) {
+    fetch(fileUrl(r.files.score_map))
+      .then(res => res.ok ? res.json() : null)
+      .then(m => { scoreMap = m; movePlayhead(0); })
+      .catch(() => {});
+  }
+  followAudio($("fullAudio"));
+
   $("partAudio").innerHTML = Object.entries(r.files.audio_parts || {})
     .map(([name, p]) =>
       `<div>${esc(name)}<audio controls preload="none" src="${fileUrl(p)}"></audio></div>`)
     .join("") || `<div>沒有可試聽的聲部。</div>`;
+  // Part renders come off the same score, so they drive the cursor too.
+  $("partAudio").querySelectorAll("audio").forEach(followAudio);
 
   const ab = Object.entries(r.files.audio_compare || {});
   $("abBlock").classList.toggle("hidden", ab.length === 0);
@@ -333,8 +450,83 @@ function showView(views, idx) {
     b.setAttribute("aria-selected", +b.dataset.i === idx));
   const pages = views[idx][1];
   $("panel").innerHTML = `<div class="pages">` +
-    pages.map(p => `<img src="${fileUrl(p)}" alt="樂譜第 ${pages.indexOf(p) + 1} 頁" loading="lazy">`).join("") +
+    pages.map((p, i) =>
+      `<div class="page"><img src="${fileUrl(p)}" alt="樂譜第 ${i + 1} 頁" loading="lazy">` +
+      `<div class="playhead" data-page="${i}"></div></div>`).join("") +
     `</div>`;
+  // The map describes the engraved score, so the cursor only belongs on that view.
+  followedView = views[idx][0] === "五線譜";
+  movePlayhead(currentAudio ? currentAudio.currentTime : 0);
+}
+
+// ---- playback cursor -------------------------------------------------------
+// Bar n starts at n * beats_per_bar beats, and the rendered audio is played at
+// the score's own tempo, so a time in that audio converts to a bar and a
+// fraction of it by arithmetic alone. Within the bar the cursor is
+// interpolated: that is not where each note sits, but at these bar widths it
+// lands close enough to read, and it moves evenly instead of hopping.
+let scoreMap = null, followedView = false, currentAudio = null, lastBar = -1;
+
+function barAt(seconds) {
+  if (!scoreMap) return null;
+  const beats = seconds * scoreMap.tempo / 60;
+  const perBar = scoreMap.beats_per_bar;
+  const index = Math.floor(beats / perBar);
+  if (index < 0 || index >= scoreMap.bars) return null;
+  return { index, frac: (beats - index * perBar) / perBar };
+}
+
+function movePlayhead(seconds) {
+  const heads = document.querySelectorAll(".playhead");
+  if (!heads.length) return;
+  const at = followedView ? barAt(seconds) : null;
+  if (!at) { heads.forEach(h => h.classList.remove("on")); return; }
+
+  for (let p = 0; p < scoreMap.pages.length; p++) {
+    const page = scoreMap.pages[p];
+    for (const system of page.systems) {
+      const bar = system.bars.find(b => b.i === at.index);
+      if (!bar) continue;
+      heads.forEach(h => h.classList.remove("on"));
+      const head = heads[p];
+      if (!head) return;
+      const x = bar.x0 + (bar.x1 - bar.x0) * at.frac;
+      head.style.left = (x / page.width * 100) + "%";
+      head.style.top = (system.top / page.height * 100) + "%";
+      head.style.height = ((system.bottom - system.top) / page.height * 100) + "%";
+      head.classList.add("on");
+      if (at.index !== lastBar) { lastBar = at.index; keepVisible(head); }
+      return;
+    }
+  }
+}
+
+// Follow the music down the page, but only when the cursor has actually left
+// the visible area — scrolling on every bar would fight the reader.
+function keepVisible(head) {
+  const box = head.closest(".pages");
+  if (!box) return;
+  // Measured against the scroller's own box rather than via offsetParent: the
+  // cursor's offsetParent is its page wrapper, whose offsets are relative to
+  // whatever is positioned above it, which is not the scroller.
+  const cursor = head.getBoundingClientRect();
+  const frame = box.getBoundingClientRect();
+  if (cursor.top < frame.top || cursor.bottom > frame.bottom) {
+    box.scrollTop += (cursor.top - frame.top) - box.clientHeight * 0.35;
+  }
+}
+
+// Any player rendered from the score shares its timeline. The left/right
+// comparison files do not — they are aligned to the original recording — so
+// they are deliberately left out.
+function followAudio(el) {
+  el.addEventListener("play", () => { currentAudio = el; });
+  el.addEventListener("timeupdate", () => {
+    if (currentAudio === el) movePlayhead(el.currentTime);
+  });
+  el.addEventListener("seeked", () => {
+    if (currentAudio === el) { lastBar = -1; movePlayhead(el.currentTime); }
+  });
 }
 </script>
 </body>

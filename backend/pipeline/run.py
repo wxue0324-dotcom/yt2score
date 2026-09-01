@@ -14,6 +14,7 @@ from . import audio as audio_mod
 from . import download as download_mod
 from . import jianpu as jianpu_mod
 from . import score as score_mod
+from . import scoremap as scoremap_mod
 from . import separate as separate_mod
 from . import transcribe as transcribe_mod
 from .quantize import (BeatGrid, clean_part as clean, drop_notes_shared_with,
@@ -179,6 +180,12 @@ def run(url: str, workdir: Path, progress: Progress = _noop,
     parts_data = trim_leading_rest(parts_data, beats_per_bar=analysis.beats_per_bar)
     sc = score_mod.build_score(parts_data, analysis, track.title, track.uploader)
     files_abs = score_mod.export(sc, outdir, "score")
+    # Where each bar sits on the page, so the web player can follow along.
+    if files_abs.get("svg_pages"):
+        mapped = scoremap_mod.write(files_abs["svg_pages"], analysis.beats_per_bar,
+                                    analysis.tempo, outdir / "score_map.json")
+        if mapped:
+            files_abs["map"] = mapped
     if "pdf" not in files_abs:
         warnings.append("MuseScore 沒有產生 PDF，但 MusicXML 可以正常開啟。")
 
