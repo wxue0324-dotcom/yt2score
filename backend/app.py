@@ -55,6 +55,46 @@ def _work_dir(job_id: str) -> Path:
     return WORK / job_id
 
 
+def _restore_finished_jobs() -> None:
+    """Re-register completed runs from disk at startup.
+
+    Job state lives in memory, but the files it points at do not: every finished
+    run has already written its score, its audio and a `result.json` beside
+    them. Without this the two disagree after any restart — the score is still
+    on disk while the page showing it answers 404 for its own audio, because the
+    file endpoint checks that the job exists before serving anything. Restarting
+    to pick up a code change would quietly break every result already open.
+
+    Only finished runs come back. A job that was mid-flight when the process
+    stopped has no work still running to attach to, and its directory holds
+    whichever stages happened to finish first.
+    """
+    if not WORK.is_dir():
+        return
+    for path in sorted(WORK.glob("*/result.json")):
+        job_id = path.parent.name
+        if job_id in JOBS or not re.fullmatch(r"[0-9a-f]{12}", job_id):
+            continue
+        try:
+            result = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        JOBS[job_id] = Job(
+            id=job_id,
+            # The URL was only ever held in memory; the result does not record
+            # it. Everything the page needs to render is in `result`.
+            url="",
+            status="done",
+            percent=100,
+            result=result,
+            created=datetime.fromtimestamp(
+                path.stat().st_mtime).isoformat(timespec="seconds"),
+        )
+
+
+_restore_finished_jobs()
+
+
 def _execute(job: Job) -> None:
     job.status = "running"
 
