@@ -435,6 +435,11 @@ function render(r) {
   $("warnings").innerHTML = (r.warnings || [])
     .map(w => `<div class="note warn">${esc(w)}</div>`).join("");
 
+  // Cleared before the view is built. showView draws the cursor as it goes, so
+  // leaving the previous job's map in place puts a line on the new score at a
+  // position taken from the old one.
+  scoreMap = null; currentAudio = null; lastBar = -1;
+
   const views = [];
   if (r.files.score_svg_pages) views.push(["五線譜", r.files.score_svg_pages]);
   if (r.files.jianpu_svg_pages) views.push(["簡譜", r.files.jianpu_svg_pages]);
@@ -463,9 +468,6 @@ function render(r) {
     $("mainPlayer").classList.add("hidden");
   }
 
-  // Load the bar map before wiring players up, so a cursor never appears
-  // against a score it does not describe.
-  scoreMap = null; currentAudio = null; lastBar = -1;
   if (r.files.score_map) {
     fetch(fileUrl(r.files.score_map))
       .then(res => res.ok ? res.json() : null)
@@ -581,6 +583,10 @@ function keepVisible(head) {
 // comparison files do not — they are aligned to the original recording — so
 // they are deliberately left out.
 function followAudio(el) {
+  // The main player is the same element on every run, so binding per render
+  // would stack a fresh set of listeners on it each time.
+  if (el.dataset.followed) return;
+  el.dataset.followed = "1";
   el.addEventListener("play", () => { currentAudio = el; });
   el.addEventListener("timeupdate", () => {
     if (currentAudio === el) movePlayhead(el.currentTime);
