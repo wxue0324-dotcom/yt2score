@@ -25,6 +25,49 @@ def _torch_device() -> str:
     return "cpu"
 
 
+def _model_signatures() -> list[str]:
+    """The checkpoint signatures MODEL is built from, per Demucs' own bag file.
+
+    Read rather than hardcoded: the cached filename is `<sig>-<checksum>.th`
+    and only the signature half is stable enough to look for.
+    """
+    try:
+        import yaml
+        from demucs.pretrained import REMOTE_ROOT
+        bag = Path(REMOTE_ROOT) / f"{MODEL}.yaml"
+        if not bag.exists():
+            return [MODEL]        # MODEL is a bare signature, not a bag
+        return [str(sig) for sig in yaml.safe_load(bag.read_text())["models"]]
+    except Exception:
+        return [MODEL]
+
+
+def model_is_cached() -> bool:
+    try:
+        import torch
+        checkpoints = Path(torch.hub.get_dir()) / "checkpoints"
+    except Exception:
+        return False
+    return all(any(checkpoints.glob(f"{sig}-*.th")) for sig in _model_signatures())
+
+
+def ensure_model(progress=None) -> bool:
+    """Fetch the separation weights now if they are not cached yet.
+
+    Returns True when a download actually happened. Left to Demucs, the 84MB
+    fetch lands *inside* the first separation, where nothing reports it: on a
+    slow link the bar sits on "分軌中" for a minute and reads as a hang. This
+    is where the wait belongs — announced, and before the run needs the model.
+    """
+    if model_is_cached():
+        return False
+    if progress:
+        progress(f"首次執行：下載分軌模型 {MODEL}（約 84MB）…")
+    from demucs.pretrained import get_model
+    get_model(MODEL)              # downloads into the torch hub cache
+    return True
+
+
 def separate(wav_path: Path, workdir: Path, progress=None) -> dict[str, Path]:
     """Return {stem_name: wav path}. Falls back to CPU if the GPU path fails."""
     out_root = workdir / "stems"
