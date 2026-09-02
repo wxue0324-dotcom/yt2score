@@ -79,7 +79,10 @@
   button:hover:not(:disabled) { filter: brightness(1.07); }
   button:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  .opts { margin-top: 14px; font-size: 14px; color: var(--muted); }
+  .opts {
+    margin-top: 14px; font-size: 14px; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: 8px 22px;
+  }
   .opts label { cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
   .opts input { accent-color: var(--accent); }
 
@@ -221,6 +224,7 @@
     </form>
     <div class="opts">
       <label><input type="checkbox" id="drums" checked> 包含鼓組譜</label>
+      <label><input type="checkbox" id="chime" checked> 完成時發出提示音</label>
     </div>
   </div>
 
@@ -295,6 +299,16 @@ window.addEventListener("DOMContentLoaded", () => {
   }).catch(() => {});
 });
 const STEM_NAMES = { vocals: "人聲", drums: "鼓組", bass: "貝斯", other: "其他樂器" };
+
+// Restore the chime preference, tolerating storage that refuses to be read.
+try {
+  if (localStorage.getItem("yt2score.chime") === "off") $("chime").checked = false;
+} catch (err) { /* private mode */ }
+$("chime").addEventListener("change", () => {
+  try {
+    localStorage.setItem("yt2score.chime", $("chime").checked ? "on" : "off");
+  } catch (err) { /* private mode */ }
+});
 let jobId = null;
 
 $("form").addEventListener("submit", async e => {
@@ -331,6 +345,51 @@ function logLine(msg) {
   $("log").scrollTop = $("log").scrollHeight;
 }
 
+// A short chime when the score lands. Transcribing runs for minutes, so the
+// tab is usually in the background by the time it finishes.
+//
+// Synthesised rather than shipped as a file: the app is meant to work with
+// nothing fetched from anywhere, and three oscillators cost less than an asset
+// to load and cache. Sound is a preference people want to keep, so it is
+// remembered — wrapped, because storage throws outright in some privacy modes.
+function chimeWanted() {
+  const box = $("chime");
+  return box ? box.checked : true;
+}
+
+let audioCtx = null;
+
+function chime(ok = true) {
+  if (!chimeWanted()) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx = audioCtx || new Ctx();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const start = audioCtx.currentTime + 0.02;
+    // Rising major triad for a finished score, a falling pair for a failure —
+    // distinguishable from across the room without reading anything.
+    const notes = ok ? [880, 1108.73, 1318.51] : [440, 329.63];
+    notes.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const at = start + i * (ok ? 0.12 : 0.18);
+      // Shaped rather than switched: a bare start/stop clicks.
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.2, at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.45);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(at);
+      osc.stop(at + 0.5);
+    });
+  } catch (err) {
+    // Never let the notification break the thing it is announcing.
+  }
+}
+
 function listen(id) {
   const src = new EventSource(`/api/jobs/${id}/events`);
   src.onmessage = ev => {
@@ -342,12 +401,14 @@ function listen(id) {
       src.close();
       $("go").disabled = false;
       render(d.result);
+      chime(true);
     } else if (d.type === "error") {
       src.close();
       $("go").disabled = false;
       $("warnings").innerHTML =
         `<div class="note err" style="white-space:pre-wrap">${esc(d.error)}</div>`;
       $("result").classList.remove("hidden");
+      chime(false);
     }
   };
   src.onerror = () => { src.close(); $("go").disabled = false; };
