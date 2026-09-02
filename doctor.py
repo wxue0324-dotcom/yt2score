@@ -56,6 +56,28 @@ def check_python() -> bool:
     return ok
 
 
+def check_model() -> None:
+    """The separation weights are an 84MB download on first use.
+
+    Left to the first real run, that fetch happens inside the separation step
+    and looks like a hang. Doing it here — where waiting is the whole point of
+    the command — is the difference between a slow doctor and a stalled song.
+    """
+    print("\n分軌模型")
+    from pipeline import separate as sep
+
+    if sep.model_is_cached():
+        print(f"  {OK} {sep.MODEL} 已快取")
+        return
+    print(f"  {WARN} {sep.MODEL} 尚未下載，現在抓（約 84MB，慢的網路要幾分鐘）…")
+    try:
+        sep.ensure_model(progress=lambda msg: print(f"      {msg}"))
+        print(f"  {OK} 下載完成")
+    except Exception as exc:
+        print(f"  {FAIL} 下載失敗：{exc}")
+        print("      → 需要能連到 dl.fbaipublicfiles.com。")
+
+
 def check_challenge_solver() -> None:
     """YouTube's "n" signature challenge must be solved or media URLs 403."""
     print("\nYouTube 簽章挑戰求解器 (EJS)")
@@ -124,6 +146,7 @@ def main() -> int:
     print("=" * 46)
     binaries_ok = check_binaries()
     python_ok = check_python()
+    check_model()
     check_challenge_solver()
     check_cookies()
     check_download()

@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
+from pipeline import separate as separate_mod
 from pipeline.download import cookies_configured
 from pipeline.run import run as run_pipeline
 
@@ -93,6 +94,24 @@ def _restore_finished_jobs() -> None:
 
 
 _restore_finished_jobs()
+
+
+def _prefetch_model() -> None:
+    """Pull the Demucs weights in before the first job needs them.
+
+    Submitted to the same single-worker executor the jobs use, so a URL pasted
+    seconds after startup queues behind this rather than racing it. A failure
+    is not worth raising here: the run retries the fetch itself and reports it
+    in the job log, where somebody is actually looking.
+    """
+    try:
+        if separate_mod.ensure_model(progress=lambda msg: print(msg, flush=True)):
+            print("分軌模型已備妥", flush=True)
+    except Exception as exc:
+        print(f"分軌模型預抓失敗（首次採譜時會重試）：{exc}", flush=True)
+
+
+EXECUTOR.submit(_prefetch_model)
 
 
 def _execute(job: Job) -> None:
